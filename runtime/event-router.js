@@ -86,6 +86,7 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       newBlock: result.newContext.current_block,
       actions: result.actions,
       error: result.error,
+      warning: result.warning,
       journeyStatus: result.newContext.journey_status
     };
   }

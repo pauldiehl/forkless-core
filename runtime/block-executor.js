@@ -62,15 +62,34 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
       transitioned = transitionToNextBlock(newContext, journeyDef, blockDef);
     } else if (handler.transition && handler.transition !== null) {
       // Internal state transition
-      newContext.block_state = resolveTransition(handler.transition, event);
-      transitioned = true;
+      const derivedState = resolveTransition(handler.transition, event);
 
-      // Check if this internal state is an exit state
+      // If the block declares internal_states, validate the derived state
       if (blockContract.internal_states) {
-        const internalState = blockContract.internal_states[newContext.block_state];
-        if (internalState && internalState.is_exit) {
+        const internalState = blockContract.internal_states[derivedState];
+        if (!internalState) {
+          // Unrecognized state — don't update block_state, log a warning.
+          // The event still gets logged by the router (audit trail), but
+          // we won't silently record an undeclared state.
+          return {
+            newContext: context,
+            actions: [],
+            transitioned: false,
+            warning: `Unrecognized internal state "${derivedState}" for block "${blockDef.block}". Event logged but state not updated.`,
+            beforeResults
+          };
+        }
+
+        newContext.block_state = derivedState;
+        transitioned = true;
+
+        if (internalState.is_exit) {
           transitionToNextBlock(newContext, journeyDef, blockDef);
         }
+      } else {
+        // No internal_states declared — accept the transition as-is
+        newContext.block_state = derivedState;
+        transitioned = true;
       }
     }
 

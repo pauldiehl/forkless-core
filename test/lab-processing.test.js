@@ -62,7 +62,25 @@ describe('lab_processing block', () => {
     result.core.close();
   });
 
-  it('updates status on intermediate webhook', async () => {
+  it('updates status on intermediate webhook (declared state)', async () => {
+    const result = await teleport({
+      journeyDef: labsOnly,
+      atBlock: 'lab_processing',
+      event: {
+        type: 'api',
+        source: 'labcorp_webhook',
+        payload: { labcorp_status: 'lab_results_pending', lab_order_id: 'lab_test_001' }
+      }
+    });
+
+    assert.equal(result.result.handled, true);
+    // lab_results_pending is declared but not an exit state — stay in block
+    assert.equal(result.context.current_block, 'lab_processing');
+    assert.equal(result.context.block_state, 'lab_results_pending');
+    result.core.close();
+  });
+
+  it('rejects undeclared internal state with warning', async () => {
     const result = await teleport({
       journeyDef: labsOnly,
       atBlock: 'lab_processing',
@@ -74,10 +92,12 @@ describe('lab_processing block', () => {
     });
 
     assert.equal(result.result.handled, true);
-    // processing is not an exit state, should stay in lab_processing
     assert.equal(result.context.current_block, 'lab_processing');
-    // block_state should be updated to the derived value
-    assert.equal(result.context.block_state, 'processing');
+    // Should NOT update block_state to undeclared value
+    assert.notEqual(result.context.block_state, 'processing');
+    // Should have a warning
+    assert.ok(result.result.warning);
+    assert.ok(result.result.warning.includes('processing'));
     result.core.close();
   });
 
