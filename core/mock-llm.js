@@ -55,11 +55,11 @@ function createMockLLM() {
 
       // State extraction
       const stateMatch = text.match(/\b([A-Z]{2})\b/);
-      if (stateMatch && isUSState(stateMatch[1])) extracted.state_of_residence = stateMatch[1];
+      if (stateMatch && isUSState(stateMatch[1])) extracted.stateOfResidence = stateMatch[1];
       const stateNameMatch = lower.match(/(?:in |from |live in |living in )(\w+)/);
       if (stateNameMatch) {
         const abbr = stateNameToAbbr(stateNameMatch[1]);
-        if (abbr) extracted.state_of_residence = abbr;
+        if (abbr) extracted.stateOfResidence = abbr;
       }
 
       // Health concerns
