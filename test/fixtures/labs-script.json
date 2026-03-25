@@ -1,0 +1,32 @@
+[
+  {
+    "actor": "CUSTOMER",
+    "text": "I have been really tired and gaining weight"
+  },
+  {
+    "actor": "CUSTOMER",
+    "text": "Jane Smith"
+  },
+  {
+    "actor": "CUSTOMER",
+    "text": "jane@example.com, 1990-05-15, female"
+  },
+  {
+    "actor": "CUSTOMER",
+    "text": "Yes that sounds perfect"
+  },
+  {
+    "actor": "WEBHOOK",
+    "source": "square_webhook",
+    "payload": { "status": "completed", "order_id": "sq_test_001", "amount_cents": 14900 }
+  },
+  {
+    "actor": "CUSTOMER",
+    "text": "Do I need to fast before the blood draw?"
+  },
+  {
+    "actor": "WEBHOOK",
+    "source": "labcorp_webhook",
+    "payload": { "labcorp_status": "results_ready", "lab_order_id": "lab_test_001" }
+  }
+]

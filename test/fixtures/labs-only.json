@@ -1,0 +1,42 @@
+{
+  "journey_type": "labs_only",
+  "display_name": "Labs Only (Test Fixture)",
+  "description": "Simplest journey exercising the full stack. Test fixture — not consumer config.",
+  "blocks": [
+    {
+      "block": "presentation",
+      "params": { "offering_slug": "lab-panel" }
+    },
+    {
+      "block": "simple_intake",
+      "params": {
+        "required_fields": ["customerName", "customerEmail", "customerDob", "customerGender"],
+        "questions": ["healthConcerns"]
+      }
+    },
+    {
+      "block": "payment",
+      "params": {
+        "amount_cents": 14900,
+        "product_slug": "lab-panel",
+        "provider": "square"
+      }
+    },
+    {
+      "block": "lab_processing",
+      "params": {
+        "lab_provider": "labcorp",
+        "auto_create_order": true,
+        "reminders": [{ "delay": "48h", "type": "lab_visit_reminder" }]
+      }
+    },
+    {
+      "block": "followup",
+      "params": {
+        "include_scheduling": true,
+        "cal_event_type": "consultation",
+        "first_checkin_delay": "7d"
+      }
+    }
+  ]
+}

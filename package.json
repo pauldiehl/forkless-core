@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Config-driven journey state machine with conversational interface",
   "main": "index.js",
+  "bin": {
+    "forkless-test": "./test/cli.js"
+  },
   "scripts": {
     "test": "node --test test/**/*.test.js",
     "test:verbose": "node --test --test-reporter spec test/**/*.test.js"

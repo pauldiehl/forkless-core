@@ -21,6 +21,7 @@ const blocks = {
   simple_intake: require('./blocks/simple_intake'),
   recommendation: require('./blocks/recommendation'),
   payment: require('./blocks/payment'),
+  lab_processing: require('./blocks/lab_processing'),
   followup: require('./blocks/followup')
 };
 
