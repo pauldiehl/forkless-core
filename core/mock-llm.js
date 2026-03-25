@@ -109,34 +109,39 @@ function createMockLLM() {
    */
   async function generateResponse(intent, context, blockDef) {
     const blockName = blockDef?.block || blockDef?.name || '';
-    const name = context?.intake?.customerName || 'there';
+    const ns = context?.[blockName] || {};
+    const name = ns.customerName || context?.simple_intake?.customerName || context?.intake?.customerName || 'there';
 
-    const responses = {
-      presentation: {
-        describe_symptoms: `That sounds like something we can help with. Let me get some information from you so we can figure out the best path forward. What's your full name?`,
-        browsing: `I'm here to help with your health journey. We offer comprehensive lab panels with medical consultations. What's been going on?`
-      },
-      simple_intake: {
-        provide_info: (() => {
-          const missing = getMissingFieldsList(blockDef, context);
-          if (missing.length === 0) return `Thanks ${name}! I have everything I need. Let me put together a recommendation for you.`;
-          return `Thanks! I still need your ${missing.join(', ')}. Can you provide those?`;
-        })(),
-        general_question: `I'd be happy to help with that. But first, let me finish collecting your information.`
-      },
-      recommendation: {
-        agree_to_recommendation: `Great choice! Let me set up your payment.`,
-        decline_recommendation: `No problem at all. Take your time to think about it. I'm here whenever you're ready.`,
-        recommendation_question: `Good question! I'd be happy to explain more about what's included.`
-      },
-      payment: {
-        payment_question: `Your payment is processed securely. If you have any issues, we're here to help.`,
-        general_question: `I can help with that after we complete your payment.`
+    // Presentation
+    if (blockName === 'presentation') {
+      if (intent === 'describe_symptoms') return `That sounds like something we can help with. Let me get some information from you so we can figure out the best path forward. What's your full name?`;
+      return `I'm here to help with your health journey. We offer comprehensive lab panels with medical consultations. What's been going on?`;
+    }
+
+    // Simple intake
+    if (blockName === 'simple_intake') {
+      if (intent === 'provide_info') {
+        const missing = getMissingFieldsList(blockDef, context);
+        if (missing.length === 0) return `Thanks ${name}! I have everything I need. Let me put together a recommendation for you.`;
+        return `Thanks ${name}! I still need your ${missing.join(', ')}. Can you provide those?`;
       }
-    };
+      return `I'd be happy to help with that. But first, let me finish collecting your information.`;
+    }
 
-    const blockResponses = responses[blockName] || {};
-    return blockResponses[intent] || `I'm here to help. What would you like to know?`;
+    // Recommendation
+    if (blockName === 'recommendation') {
+      if (intent === 'agree_to_recommendation') return `Great choice! Let me set up your payment.`;
+      if (intent === 'decline_recommendation') return `No problem at all. Take your time to think about it. I'm here whenever you're ready.`;
+      return `Good question! I'd be happy to explain more about what's included.`;
+    }
+
+    // Payment
+    if (blockName === 'payment') {
+      if (intent === 'payment_question') return `Your payment is processed securely. If you have any issues, we're here to help.`;
+      return `I can help with that after we complete your payment.`;
+    }
+
+    return `I'm here to help. What would you like to know?`;
   }
 
   return { parseIntent, generateResponse };
@@ -150,8 +155,9 @@ function containsAny(text, words) {
 
 function getMissingFieldsList(blockDef, context) {
   const required = blockDef?.params?.required_fields || [];
-  const intake = context?.intake || {};
-  return required.filter(f => !intake[f] || intake[f] === '');
+  const blockName = blockDef?.block || blockDef?.name || '';
+  const ns = context?.[blockName] || context?.intake || {};
+  return required.filter(f => !ns[f] || ns[f] === '');
 }
 
 function isUSState(abbr) {
