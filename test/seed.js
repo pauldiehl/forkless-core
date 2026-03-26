@@ -36,6 +36,7 @@ const defaultSeedData = {
   recommendation: {
     offering: 'lab-panel',
     agreed: true,
+    consent_recorded: true,
     panels: ['female_initial_panel']
   },
   payment: {

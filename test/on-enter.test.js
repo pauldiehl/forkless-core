@@ -36,6 +36,9 @@ describe('on_enter block actions', () => {
     const convo = core.db.conversations.create({ user_id: user.id, journey_instance_id: ji.id });
     core.context.update(ji.id, { conversation_id: convo.id });
 
+    // Pre-set consent_recorded (simulates consumer layer recording consent)
+    core.context.update(ji.id, { 'recommendation.consent_recorded': true });
+
     // User agrees → transitions to payment → on_enter fires
     await core.eventRouter.handleEvent({
       type: 'conversation', journey_id: ji.id,
@@ -111,7 +114,7 @@ describe('on_enter block actions', () => {
     initCtx.journey_status = 'in_progress';
     const ji = core.db.journeyInstances.create({ user_id: user.id, journey_type: 'fail_enter_test', context: initCtx, status: 'in_progress' });
     const convo = core.db.conversations.create({ user_id: user.id, journey_instance_id: ji.id });
-    core.context.update(ji.id, { conversation_id: convo.id });
+    core.context.update(ji.id, { conversation_id: convo.id, 'recommendation.consent_recorded': true });
 
     // Should transition to payment even though on_enter fails
     await core.eventRouter.handleEvent({
@@ -194,7 +197,7 @@ describe('on_enter block actions', () => {
     initCtx.journey_status = 'in_progress';
     const ji = core.db.journeyInstances.create({ user_id: user.id, journey_type: 'merge_test', context: initCtx, status: 'in_progress' });
     const convo = core.db.conversations.create({ user_id: user.id, journey_instance_id: ji.id });
-    core.context.update(ji.id, { conversation_id: convo.id });
+    core.context.update(ji.id, { conversation_id: convo.id, 'recommendation.consent_recorded': true });
 
     await core.eventRouter.handleEvent({
       type: 'conversation', journey_id: ji.id,
