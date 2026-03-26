@@ -277,6 +277,21 @@ function getHandler(blockContract, event) {
 }
 
 /**
+ * Check if a block should be skipped based on its skip_if condition.
+ * skip_if is a dot-notation path into the context — if the value is truthy, skip.
+ */
+function shouldSkipBlock(blockDef, context) {
+  if (!blockDef.skip_if) return false;
+  const parts = blockDef.skip_if.split('.');
+  let value = context;
+  for (const part of parts) {
+    if (value === undefined || value === null) return false;
+    value = value[part];
+  }
+  return !!value;
+}
+
+/**
  * Find the next block in the journey sequence.
  */
 function getNextBlock(journeyDef, currentBlockDef) {
@@ -290,7 +305,15 @@ function getNextBlock(journeyDef, currentBlockDef) {
  * Transition context to the next block. Mutates newContext. Returns whether transition happened.
  */
 function transitionToNextBlock(newContext, journeyDef, currentBlockDef) {
-  const nextBlock = getNextBlock(journeyDef, currentBlockDef);
+  let nextBlock = getNextBlock(journeyDef, currentBlockDef);
+
+  // Skip blocks with skip_if conditions that evaluate to truthy
+  let cursor = currentBlockDef;
+  while (nextBlock && shouldSkipBlock(nextBlock, newContext)) {
+    cursor = nextBlock;
+    nextBlock = getNextBlock(journeyDef, cursor);
+  }
+
   if (nextBlock) {
     const now = new Date().toISOString();
     // Mark previous block as exited
@@ -402,4 +425,4 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-module.exports = { createBlockExecutor, getHandler, getNextBlock, resolveTransition, applyContextUpdate, getConversationHistory };
+module.exports = { createBlockExecutor, getHandler, getNextBlock, shouldSkipBlock, resolveTransition, applyContextUpdate, getConversationHistory };

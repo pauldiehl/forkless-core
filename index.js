@@ -22,7 +22,13 @@ const blocks = {
   recommendation: require('./blocks/recommendation'),
   payment: require('./blocks/payment'),
   lab_processing: require('./blocks/lab_processing'),
-  followup: require('./blocks/followup')
+  followup: require('./blocks/followup'),
+  encounter_notes: require('./blocks/encounter_notes'),
+  rx_review: require('./blocks/rx_review'),
+  rx_consent: require('./blocks/rx_consent'),
+  rx_payment: require('./blocks/rx_payment'),
+  rx_order: require('./blocks/rx_order'),
+  rx_tracking: require('./blocks/rx_tracking')
 };
 
 /**
