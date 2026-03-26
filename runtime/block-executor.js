@@ -106,6 +106,15 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
       }
     }
 
+    // ── Fire on_enter for new block if transitioned ──
+    if (transitioned) {
+      const enterResult = await fireOnEnter(newContext, journeyDef, event);
+      if (enterResult) {
+        newContext = enterResult.newContext;
+        afterActions.push(...enterResult.actions);
+      }
+    }
+
     return { newContext, actions: afterActions, transitioned, beforeResults };
   }
 
@@ -132,7 +141,15 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
       transitioned = transitionToNextBlock(newContext, journeyDef, blockDef);
     }
 
-    // 4. LLM generates response — include visibility metadata from block definition
+    // 4. Fire on_enter for new block if transitioned
+    if (transitioned) {
+      const enterResult = await fireOnEnter(newContext, journeyDef, event);
+      if (enterResult) {
+        newContext = enterResult.newContext;
+      }
+    }
+
+    // 5. LLM generates response — include visibility metadata from block definition
     const defaultVisibility = blockDef.default_visibility || ['customer', 'agent'];
     const respondResult = await actionDispatcher.dispatch(
       {
@@ -154,7 +171,61 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
     };
   }
 
-  return { execute };
+  /**
+   * Fire on_enter actions for the current block.
+   * Called after a transition lands on a new block.
+   */
+  async function fireOnEnter(context, journeyDef, event) {
+    const currentBlockName = context.current_block;
+    const blockDef = journeyDef.blocks.find(b => b.block === currentBlockName);
+    if (!blockDef) return null;
+
+    const blockContract = blockRegistry[blockDef.block];
+    if (!blockContract?.on_enter || blockContract.on_enter.length === 0) return null;
+
+    let newContext = deepClone(context);
+    const actions = [];
+
+    // Pre-populate context namespace with block params (amount_cents → price_display, etc.)
+    const ns = blockDef.block;
+    if (blockDef.params) {
+      if (!newContext[ns]) newContext[ns] = {};
+      if (blockDef.params.amount_cents && !newContext[ns].price_display) {
+        newContext[ns].price_display = `$${(blockDef.params.amount_cents / 100).toFixed(2)}`;
+      }
+    }
+
+    for (const action of blockContract.on_enter) {
+      const resolvedAction = resolveActionRefs(action, newContext, event);
+      // Attach block params for capability param resolution
+      resolvedAction._blockParams = blockDef.params;
+
+      let result;
+      try {
+        result = await actionDispatcher.dispatch(resolvedAction, newContext, event);
+      } catch (err) {
+        // on_enter actions should not crash the transition — log and continue
+        console.warn(`[on_enter] Action "${resolvedAction.type}" failed for block "${blockDef.block}": ${err.message}`);
+        actions.push({ action: resolvedAction, error: err.message });
+        continue;
+      }
+
+      actions.push({ action: resolvedAction, result });
+
+      // Capability results merge into the block's context namespace
+      if ((resolvedAction.type === 'capability' || resolvedAction.type === 'execute_capability') && result && typeof result === 'object') {
+        newContext[ns] = { ...newContext[ns], ...result };
+      }
+      // update_context actions
+      if (resolvedAction.type === 'update_context' && resolvedAction.set) {
+        newContext = applyContextUpdate(newContext, resolvedAction.set);
+      }
+    }
+
+    return { newContext, actions };
+  }
+
+  return { execute, fireOnEnter };
 }
 
 // ── Helper functions ──

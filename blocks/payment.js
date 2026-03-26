@@ -16,10 +16,30 @@ module.exports = {
     provider: { type: 'string', enum: ['square', 'stripe'], required: true }
   },
 
-  reads: ['intake.customerName', 'intake.customerEmail', 'recommendation.agreed'],
+  reads: ['simple_intake.customerName', 'simple_intake.customerEmail', 'recommendation.agreed'],
   writes: ['payment.order_id', 'payment.status', 'payment.completed_at', 'payment.checkout_url'],
 
   handles_events: ['conversation', 'api'],
+
+  on_enter: [
+    {
+      type: 'capability',
+      capability: 'square_create_checkout',
+      params_from_context: {
+        amount_cents: 'payment.amount_cents',
+        product_slug: 'payment.product_slug',
+        buyer_email: 'simple_intake.customerEmail'
+      }
+    },
+    {
+      type: 'respond',
+      template: 'Here\'s your secure payment link: {{payment.checkout_url}}\n\nThe total is ${{payment.price_display}}. Once payment is confirmed, we\'ll get your next steps set up right away.'
+    },
+    {
+      type: 'update_context',
+      set: { 'payment.status': 'pending' }
+    }
+  ],
 
   on_conversation_event: {
     allowed_intents: ['payment_question', 'cancel_order']

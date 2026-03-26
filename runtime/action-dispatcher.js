@@ -68,6 +68,26 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
         return result;
       }
 
+      case 'capability': {
+        if (!capabilityRegistry) throw new Error('No capability registry configured');
+        const cap = capabilityRegistry.get(action.capability);
+        if (!cap) throw new Error(`Capability not found: ${action.capability}`);
+        // Resolve params from context + block params
+        const resolvedParams = {};
+        if (action.params_from_context) {
+          for (const [key, source] of Object.entries(action.params_from_context)) {
+            // Check block params first (action._blockParams), then context path
+            const fromBlockParams = action._blockParams ? getNestedValue(action._blockParams, key) : null;
+            resolvedParams[key] = fromBlockParams || getNestedValue(context, source) || null;
+          }
+        }
+        if (action.params) {
+          Object.assign(resolvedParams, action.params);
+        }
+        const capResult = await cap.execute(resolvedParams, context);
+        return capResult;
+      }
+
       case 'validate': {
         return runValidation(action, context, event);
       }
@@ -115,6 +135,20 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
   }
 
   return { dispatch };
+}
+
+/**
+ * Get a nested value from an object using dot-notation path.
+ */
+function getNestedValue(obj, path) {
+  if (!obj || !path) return null;
+  const parts = path.split('.');
+  let value = obj;
+  for (const part of parts) {
+    if (value === undefined || value === null) return null;
+    value = value[part];
+  }
+  return value !== undefined ? value : null;
 }
 
 /**
