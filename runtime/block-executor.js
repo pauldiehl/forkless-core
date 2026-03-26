@@ -215,6 +215,12 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
       // Capability results merge into the block's context namespace
       if ((resolvedAction.type === 'capability' || resolvedAction.type === 'execute_capability') && result && typeof result === 'object') {
         newContext[ns] = { ...newContext[ns], ...result };
+        // Format slots array into display string for templates
+        if (result.slots && Array.isArray(result.slots)) {
+          newContext[ns].available_slots_display = result.slots
+            .map((s, i) => `${i + 1}. ${s.display}`)
+            .join('\n');
+        }
       }
       // update_context actions
       if (resolvedAction.type === 'update_context' && resolvedAction.set) {
