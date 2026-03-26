@@ -34,7 +34,7 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
           return { sent: true, text };
         } else if (action.payload) {
           if (!llm) return { sent: false, reason: 'no_llm_configured' };
-          const text = await llm.generateResponse(action.payload.intent, action.payload.context, action.payload.block);
+          const text = await llm.generateResponse(action.payload.intent, action.payload.context, action.payload.block, action.payload.conversationHistory);
           if (conversationStore && context.conversation_id) {
             await conversationStore.addMessage(context.conversation_id, { ...msgMeta, text });
           }
@@ -94,7 +94,7 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
 
       case 'parse_intent': {
         if (!llm) return { intent: 'unknown', extracted: {}, reason: 'no_llm_configured' };
-        const result = await llm.parseIntent(action.payload.text, context, action.payload.block);
+        const result = await llm.parseIntent(action.payload.text, context, action.payload.block, action.payload.conversationHistory);
         return result;
       }
 

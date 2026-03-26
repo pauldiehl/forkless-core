@@ -77,7 +77,8 @@ function createCore(opts = {}) {
 
   const blockExecutor = createBlockExecutor({
     actionDispatcher,
-    blockRegistry
+    blockRegistry,
+    conversationStore: db.conversations
   });
 
   // Journey definitions — populated via registerJourney()

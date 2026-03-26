@@ -8,7 +8,7 @@
  * It reads the block contract and follows instructions.
  */
 
-function createBlockExecutor({ actionDispatcher, blockRegistry }) {
+function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStore }) {
 
   /**
    * Execute one cycle of the JSM core loop.
@@ -122,9 +122,17 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
    * Handle conversational block events via LLM.
    */
   async function handleConversational(blockContract, blockDef, event, context, journeyDef) {
+    // 0. Fetch filtered conversation history for LLM context
+    const blockActor = blockDef.actor || 'customer';
+    const conversationId = context.conversation_id;
+    let conversationHistory = null;
+    if (conversationStore && conversationId) {
+      conversationHistory = getConversationHistory(conversationStore, conversationId, { viewer: blockActor });
+    }
+
     // 1. Ask LLM to parse intent + extract data
     const parseResult = await actionDispatcher.dispatch(
-      { type: 'parse_intent', payload: { text: event.payload.text, block: blockDef } },
+      { type: 'parse_intent', payload: { text: event.payload.text, block: blockDef, conversationHistory } },
       context, event
     );
 
@@ -154,7 +162,7 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
     const respondResult = await actionDispatcher.dispatch(
       {
         type: 'respond',
-        payload: { intent: parseResult.intent, context: newContext, block: blockDef },
+        payload: { intent: parseResult.intent, context: newContext, block: blockDef, conversationHistory },
         visibility: defaultVisibility,
         actor: 'agent',
         block: blockDef.block,
