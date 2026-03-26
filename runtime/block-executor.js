@@ -132,9 +132,17 @@ function createBlockExecutor({ actionDispatcher, blockRegistry }) {
       transitioned = transitionToNextBlock(newContext, journeyDef, blockDef);
     }
 
-    // 4. LLM generates response
+    // 4. LLM generates response — include visibility metadata from block definition
+    const defaultVisibility = blockDef.default_visibility || ['customer', 'agent'];
     const respondResult = await actionDispatcher.dispatch(
-      { type: 'respond', payload: { intent: parseResult.intent, context: newContext, block: blockDef } },
+      {
+        type: 'respond',
+        payload: { intent: parseResult.intent, context: newContext, block: blockDef },
+        visibility: defaultVisibility,
+        actor: 'agent',
+        block: blockDef.block,
+        llm_routed: true
+      },
       newContext, event
     );
 
@@ -281,8 +289,40 @@ function applyContextUpdate(context, updates) {
   return ctx;
 }
 
+/**
+ * Get filtered conversation history for LLM prompt assembly.
+ *
+ * Filters by visibility (only messages the block's actor should see)
+ * and excludes llm_routed:false messages (DMs, transaction notes).
+ *
+ * @param {Object} conversationStore - db.conversations
+ * @param {string} conversationId
+ * @param {Object} [opts]
+ * @param {string} [opts.viewer] - Actor perspective for visibility filter
+ * @param {boolean} [opts.includeLlmRouted] - If false, exclude llm_routed:false (default: false)
+ * @returns {Array} Filtered messages
+ */
+function getConversationHistory(conversationStore, conversationId, opts = {}) {
+  const viewer = opts.viewer || null;
+  const includeLlmRouted = opts.includeLlmRouted || false;
+
+  let messages;
+  if (viewer && conversationStore.getMessages) {
+    messages = conversationStore.getMessages(conversationId, { viewer });
+  } else {
+    const convo = conversationStore.get(conversationId);
+    messages = convo ? convo.messages : [];
+  }
+
+  if (!messages) return [];
+  if (!includeLlmRouted) {
+    messages = messages.filter(m => m.llm_routed !== false);
+  }
+  return messages;
+}
+
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-module.exports = { createBlockExecutor, getHandler, getNextBlock, resolveTransition, applyContextUpdate };
+module.exports = { createBlockExecutor, getHandler, getNextBlock, resolveTransition, applyContextUpdate, getConversationHistory };

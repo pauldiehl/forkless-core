@@ -142,12 +142,30 @@ function createAdapter(dbPath = ':memory:') {
     addMessage(id, message) {
       const convo = this.get(id);
       if (!convo) throw new Error(`Conversation ${id} not found`);
-      convo.messages.push({ ...message, timestamp: message.timestamp || new Date().toISOString() });
+      const msg = {
+        role: message.role,
+        text: message.text,
+        visibility: message.visibility || ['all'],
+        actor: message.actor || message.role,
+        block: message.block || null,
+        llm_routed: message.llm_routed !== undefined ? message.llm_routed : true,
+        timestamp: message.timestamp || new Date().toISOString()
+      };
+      convo.messages.push(msg);
       const now = new Date().toISOString();
       db.prepare(
         'UPDATE conversations SET messages = ?, updated_at = ? WHERE id = ?'
       ).run(JSON.stringify(convo.messages), now, id);
       return this.get(id);
+    },
+
+    getMessages(id, { viewer } = {}) {
+      const convo = this.get(id);
+      if (!convo) return null;
+      if (!viewer) return convo.messages;
+      return convo.messages.filter(msg =>
+        !msg.visibility || msg.visibility.includes('all') || msg.visibility.includes(viewer)
+      );
     },
 
     findByJourney(journey_instance_id) {

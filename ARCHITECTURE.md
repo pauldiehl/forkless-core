@@ -85,10 +85,23 @@ auth/                       ← OTP + JWT (Week 4)
 - [x] Test fixture journey (labs-only) — not consumer config
 - [x] 139 tests passing
 
-### Week 4: Consumer Onboarding
-- [ ] Real capability interface documentation
-- [ ] Consumer journey JSON examples
-- [ ] Server wiring (HTTP layer for webhooks + conversation)
+### Week 4: Consumer Onboarding ✅
+- [x] mvh-forkless consumer repo (server.js, journeys, capabilities, auth)
+- [x] Real capabilities adapted from MVH (Square, LabCorp, Cal.com)
+- [x] Real LLM adapter (Anthropic Claude API with tool_use)
+- [x] Auth (email OTP + HMAC JWT + test bypass)
+- [x] Full e2e with real Square sandbox + webhook flow
+
+### Visibility Model ✅
+- [x] Message schema: visibility, actor, block, llm_routed fields with backward-compat defaults
+- [x] getMessages(id, { viewer }) — visibility-filtered message retrieval
+- [x] Block executor passes visibility metadata through to respond/transaction_note actions
+- [x] Event router actor matching — rejects mismatched actors, handles DM passthrough
+- [x] DM handler — stores without block execution, visible to sender+recipient only
+- [x] Event router stores incoming conversation messages with block visibility
+- [x] getConversationHistory — LLM prompt assembly with visibility + llm_routed filtering
+- [x] Multi-actor integration test (customer/physician/DM isolation)
+- [x] 186 tests passing (157 original + 29 visibility)
 - [ ] Auth (OTP + JWT + test bypass)
 
 ## Key Design Decisions
@@ -103,6 +116,7 @@ auth/                       ← OTP + JWT (Week 4)
 8. **Two block types**: Conversational (LLM within guardrails) and Capability (deterministic config handlers).
 9. **Journey definitions are consumer config**: This package provides the engine. Journey JSONs live in the consuming application.
 10. **Test infrastructure is first-class**: Seed, teleport, and sequence are core testing tools, not afterthoughts.
+11. **Visibility model**: One conversation per journey, messages carry visibility metadata. Each actor (customer, physician, admin) sees a filtered view. DMs store without invoking the block executor. LLM prompts exclude DMs and transaction notes (`llm_routed: false`).
 
 ## Capability Interface
 

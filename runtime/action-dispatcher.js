@@ -19,17 +19,24 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
     switch (action.type) {
 
       case 'respond': {
+        const msgMeta = {
+          role: 'agent',
+          visibility: action.visibility,
+          actor: action.actor || 'agent',
+          block: action.block || context.current_block,
+          llm_routed: action.llm_routed
+        };
         if (action.template) {
           const text = resolveTemplate(action.template, context);
           if (conversationStore && context.conversation_id) {
-            await conversationStore.addMessage(context.conversation_id, { role: 'agent', text });
+            await conversationStore.addMessage(context.conversation_id, { ...msgMeta, text });
           }
           return { sent: true, text };
         } else if (action.payload) {
           if (!llm) return { sent: false, reason: 'no_llm_configured' };
           const text = await llm.generateResponse(action.payload.intent, action.payload.context, action.payload.block);
           if (conversationStore && context.conversation_id) {
-            await conversationStore.addMessage(context.conversation_id, { role: 'agent', text });
+            await conversationStore.addMessage(context.conversation_id, { ...msgMeta, text });
           }
           return { sent: true, text };
         }
@@ -41,7 +48,14 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
           ? resolveTemplate(action.template, context)
           : action.text || '';
         if (conversationStore && context.conversation_id) {
-          await conversationStore.addMessage(context.conversation_id, { role: 'transaction', text });
+          await conversationStore.addMessage(context.conversation_id, {
+            role: 'transaction',
+            text,
+            visibility: action.visibility || ['all'],
+            actor: 'system',
+            block: action.block || context.current_block,
+            llm_routed: false
+          });
         }
         return { sent: true, text };
       }

@@ -5,6 +5,9 @@
  * loads context, hands off to the block executor, saves updated context,
  * and logs the event.
  *
+ * Supports actor matching: conversation events from the wrong actor
+ * are rejected (or handled as DMs if event.dm === true).
+ *
  * This module has ZERO knowledge of specific journeys or blocks.
  * It's pure routing.
  */
@@ -15,10 +18,13 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
    * Handle an incoming event.
    *
    * @param {Object} event
-   * @param {string} [event.journey_id] - Direct journey instance ID (api, scheduled, system events)
+   * @param {string} [event.journey_id] - Direct journey instance ID
    * @param {string} [event.conversation_id] - Conversation ID (conversation events)
    * @param {string} event.type - Event type: conversation, api, scheduled, system
    * @param {string} [event.source] - Event source identifier
+   * @param {string} [event.actor] - Actor sending this event (customer, physician, admin)
+   * @param {boolean} [event.dm] - If true, this is a direct message (stores without block execution)
+   * @param {string} [event.dm_to] - DM recipient actor
    * @param {Object} event.payload - Event data
    * @returns {Object} Result of block execution
    */
@@ -56,7 +62,42 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       throw new Error(`Current block "${journeyInstance.context.current_block}" not found in journey definition`);
     }
 
-    // 4. Execute the block
+    // 4. DM handling + actor matching for conversation events
+    if (event.type === 'conversation') {
+      // DMs are always passthrough — store without block execution
+      if (event.dm === true) {
+        return handleDM(event, journeyInstance, currentBlockDef);
+      }
+
+      const blockActor = currentBlockDef.actor || 'customer';
+      const eventActor = event.actor || 'customer';
+
+      if (eventActor !== blockActor) {
+        return {
+          handled: false,
+          reason: 'actor_mismatch',
+          detail: `Block "${currentBlockDef.block}" expects actor "${blockActor}", got "${eventActor}"`
+        };
+      }
+    }
+
+    // 5. Store incoming conversation message with visibility metadata
+    if (event.type === 'conversation' && event.payload?.text) {
+      const defaultVisibility = currentBlockDef.default_visibility || ['customer', 'agent'];
+      const conversationId = event.conversation_id || journeyInstance.context.conversation_id;
+      if (conversationId) {
+        db.conversations.addMessage(conversationId, {
+          role: event.actor || 'customer',
+          text: event.payload.text,
+          visibility: defaultVisibility,
+          actor: event.actor || 'customer',
+          block: currentBlockDef.block,
+          llm_routed: true
+        });
+      }
+    }
+
+    // 6. Execute the block
     const result = await blockExecutor.execute({
       event,
       context: journeyInstance.context,
@@ -64,14 +105,14 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       journeyDef
     });
 
-    // 5. Save updated context
+    // 6. Save updated context
     const now = new Date().toISOString();
     db.journeyInstances.put(journeyInstance.id, {
       context: result.newContext,
       status: result.newContext.journey_status || journeyInstance.status
     });
 
-    // 6. Log the event
+    // 7. Log the event
     db.eventsLog.put({
       journey_instance_id: journeyInstance.id,
       type: event.type,
@@ -88,6 +129,41 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       error: result.error,
       warning: result.warning,
       journeyStatus: result.newContext.journey_status
+    };
+  }
+
+  /**
+   * Handle a DM — store message without invoking block executor.
+   * DMs are visible only to the sender and recipient.
+   */
+  function handleDM(event, journeyInstance, currentBlockDef) {
+    const conversationId = event.conversation_id || journeyInstance.context.conversation_id;
+    const visibility = [event.actor, event.dm_to || 'agent'];
+
+    if (conversationId) {
+      db.conversations.addMessage(conversationId, {
+        role: event.actor,
+        text: event.payload.text,
+        visibility,
+        actor: event.actor,
+        block: journeyInstance.context.current_block,
+        llm_routed: false
+      });
+    }
+
+    // Log the DM event for audit
+    db.eventsLog.put({
+      journey_instance_id: journeyInstance.id,
+      type: 'conversation',
+      source: 'dm',
+      payload: { from: event.actor, to: event.dm_to, text_length: event.payload.text.length }
+    });
+
+    return {
+      handled: true,
+      dm: true,
+      transitioned: false,
+      newBlock: journeyInstance.context.current_block
     };
   }
 
