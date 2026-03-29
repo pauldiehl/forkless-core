@@ -30,6 +30,8 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
           const text = resolveTemplate(action.template, context);
           if (conversationStore && context.conversation_id) {
             await conversationStore.addMessage(context.conversation_id, { ...msgMeta, text });
+          } else if (!context.conversation_id) {
+            console.warn(`[respond] No conversation_id in context — template response not stored (block: ${action.block || 'unknown'})`);
           }
           return { sent: true, text };
         } else if (action.payload) {
@@ -37,6 +39,8 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
           const text = await llm.generateResponse(action.payload.intent, action.payload.context, action.payload.block, action.payload.conversationHistory);
           if (conversationStore && context.conversation_id) {
             await conversationStore.addMessage(context.conversation_id, { ...msgMeta, text });
+          } else if (!context.conversation_id) {
+            console.warn(`[respond] No conversation_id in context — agent response generated but not stored (block: ${action.block || 'unknown'})`);
           }
           return { sent: true, text };
         }

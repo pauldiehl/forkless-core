@@ -124,10 +124,15 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
   async function handleConversational(blockContract, blockDef, event, context, journeyDef) {
     // 0. Fetch filtered conversation history for LLM context
     const blockActor = blockDef.actor || 'customer';
-    const conversationId = context.conversation_id;
+    const conversationId = context.conversation_id || event.conversation_id;
     let conversationHistory = null;
     if (conversationStore && conversationId) {
       conversationHistory = getConversationHistory(conversationStore, conversationId, { viewer: blockActor });
+    }
+
+    // Ensure conversation_id is in context for downstream action dispatch (response storage)
+    if (!context.conversation_id && conversationId) {
+      context.conversation_id = conversationId;
     }
 
     // 1. Ask LLM to parse intent + extract data
@@ -194,10 +199,18 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
     let newContext = deepClone(context);
     const actions = [];
 
-    // Pre-populate context namespace with block params (amount_cents → price_display, etc.)
+    // Pre-populate context namespace with ALL block params so they're available
+    // for params_from_context resolution and template rendering.
+    // e.g. followup.cal_event_type, lab_processing.lab_provider, etc.
     const ns = blockDef.block;
     if (blockDef.params) {
       if (!newContext[ns]) newContext[ns] = {};
+      for (const [key, value] of Object.entries(blockDef.params)) {
+        if (newContext[ns][key] === undefined) {
+          newContext[ns][key] = value;
+        }
+      }
+      // Derived convenience values
       if (blockDef.params.amount_cents && !newContext[ns].price_display) {
         newContext[ns].price_display = `$${(blockDef.params.amount_cents / 100).toFixed(2)}`;
       }
