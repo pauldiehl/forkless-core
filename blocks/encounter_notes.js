@@ -1,11 +1,14 @@
 /**
  * Encounter Notes — Conversational Block (physician-facing)
  *
- * Physician pastes transcription or types notes from patient encounter.
- * LLM generates structured internal note (clinical) and external note
- * (patient-facing summary). Flags if prescription is mentioned.
+ * Two-turn workflow:
+ * Turn 1: Physician pastes notes → LLM generates structured clinical summary
+ * Turn 2: Physician reviews and approves (or requests edits)
  *
- * Completion: internal_note + external_note + physician_approved
+ * Structured notes live in the conversation as agent messages.
+ * internal_note is captured post-approval from the last agent message.
+ *
+ * Completion: physician_approved === true
  */
 
 module.exports = {
@@ -22,11 +25,10 @@ module.exports = {
 
   reads: ['simple_intake.*', 'lab_processing.*', 'followup.*'],
   writes: [
-    'encounter_notes.transcription',
-    'encounter_notes.internal_note',
-    'encounter_notes.external_note',
+    'encounter_notes.notes_submitted',
     'encounter_notes.rx_mentioned',
-    'encounter_notes.physician_approved'
+    'encounter_notes.physician_approved',
+    'encounter_notes.internal_note'    // captured post-approval from conversation
   ],
 
   handles_events: ['conversation'],
@@ -43,8 +45,6 @@ module.exports = {
   },
 
   checkCompletion(blockDef, context) {
-    return context.encounter_notes?.internal_note
-      && context.encounter_notes?.external_note
-      && context.encounter_notes?.physician_approved === true;
+    return context.encounter_notes?.physician_approved === true;
   }
 };
