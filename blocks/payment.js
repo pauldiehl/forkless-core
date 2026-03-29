@@ -33,7 +33,7 @@ module.exports = {
     },
     {
       type: 'respond',
-      template: 'Here\'s your secure payment link: {{payment.checkout_url}}\n\nThe total is ${{payment.price_display}}. Once payment is confirmed, we\'ll get your next steps set up right away.'
+      template: 'Here\'s your secure payment link: {{payment.checkout_url}}\n\nThe total is {{payment.price_display}}. Once payment is confirmed, we\'ll get your next steps set up right away.'
     },
     {
       type: 'update_context',

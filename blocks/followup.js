@@ -15,6 +15,7 @@ module.exports = {
   params_schema: {
     include_scheduling: { type: 'boolean' },
     cal_event_type: { type: 'string' },
+    cal_event_type_id: { type: 'number' },
     first_checkin_delay: { type: 'string' }
   },
 
@@ -35,7 +36,8 @@ module.exports = {
       type: 'capability',
       capability: 'scheduling_get_slots',
       params_from_context: {
-        event_type: 'followup.cal_event_type'
+        event_type: 'followup.cal_event_type',
+        event_type_id: 'followup.cal_event_type_id'
       }
     },
     {

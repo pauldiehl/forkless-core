@@ -39,6 +39,28 @@ module.exports = {
 
   handles_events: ['conversation', 'api', 'scheduled'],
 
+  on_enter: [
+    {
+      type: 'capability',
+      capability: 'lab_create_order',
+      params_from_context: {
+        patient_name: 'simple_intake.customerName',
+        patient_dob: 'simple_intake.customerDob',
+        patient_gender: 'simple_intake.customerGender',
+        patient_email: 'simple_intake.customerEmail',
+        panels: 'recommendation.panels'
+      }
+    },
+    {
+      type: 'respond',
+      template: 'Your lab order has been created! Here\'s what to do next:\n\n1. Visit any LabCorp location with your photo ID\n2. No appointment needed — just walk in\n3. Results typically take 3-5 business days\n\nYour order ID: {{lab_processing.lab_order_id}}\n\nFasting may be required for accurate hormone panel results — avoid eating 8-12 hours before your visit if possible.'
+    },
+    {
+      type: 'update_context',
+      set: { 'lab_processing.labcorp_status': 'ordered' }
+    }
+  ],
+
   internal_states: {
     lab_order_pending: {
       on_enter: [
