@@ -85,6 +85,15 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
     if (event.type === 'conversation' && event.payload?.text) {
       const defaultVisibility = currentBlockDef.default_visibility || ['customer', 'agent'];
       const conversationId = event.conversation_id || journeyInstance.context.conversation_id;
+
+      // Sync context's conversation_id with the event's authoritative value.
+      // This prevents stale conversation_id in context (e.g., from a previous CLI session
+      // that shares a persistent DB) from causing the block executor to write to
+      // a different conversation than the event router reads from.
+      if (event.conversation_id && journeyInstance.context.conversation_id !== event.conversation_id) {
+        journeyInstance.context.conversation_id = event.conversation_id;
+      }
+
       if (conversationId) {
         db.conversations.addMessage(conversationId, {
           role: event.actor || 'customer',

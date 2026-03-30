@@ -124,14 +124,17 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
   async function handleConversational(blockContract, blockDef, event, context, journeyDef) {
     // 0. Fetch filtered conversation history for LLM context
     const blockActor = blockDef.actor || 'customer';
-    const conversationId = context.conversation_id || event.conversation_id;
+    // Use event.conversation_id first — it's the authoritative source from the event router.
+    // context.conversation_id may be stale (e.g., from a previous CLI session with a persistent DB).
+    const conversationId = event.conversation_id || context.conversation_id;
     let conversationHistory = null;
     if (conversationStore && conversationId) {
       conversationHistory = getConversationHistory(conversationStore, conversationId, { viewer: blockActor });
     }
 
-    // Ensure conversation_id is in context for downstream action dispatch (response storage)
-    if (!context.conversation_id && conversationId) {
+    // Ensure conversation_id in context matches the event's conversation_id.
+    // Always prefer event.conversation_id — context may hold a stale value from a prior session.
+    if (conversationId) {
       context.conversation_id = conversationId;
     }
 
@@ -220,6 +223,10 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       const resolvedAction = resolveActionRefs(action, newContext, event);
       // Attach block params for capability param resolution
       resolvedAction._blockParams = blockDef.params;
+      // Propagate block's default_visibility to respond actions that don't set their own
+      if (resolvedAction.type === 'respond' && !resolvedAction.visibility) {
+        resolvedAction.visibility = blockDef.default_visibility || blockContract.default_visibility;
+      }
 
       let result;
       try {
