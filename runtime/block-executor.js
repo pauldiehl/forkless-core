@@ -145,15 +145,18 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
     );
 
     // 2. Update context with any extracted data
+    //    In observation mode (wrong actor), skip data extraction — the observer's
+    //    message shouldn't mutate the block's context namespace.
     let newContext = deepClone(context);
-    if (parseResult.extracted && Object.keys(parseResult.extracted).length > 0) {
+    if (!event._observationMode && parseResult.extracted && Object.keys(parseResult.extracted).length > 0) {
       const namespace = blockDef.block;
       newContext[namespace] = { ...newContext[namespace], ...parseResult.extracted };
     }
 
     // 3. Check completion condition
+    //    In observation mode, skip — the wrong actor can't advance the block.
     let transitioned = false;
-    if (blockContract.checkCompletion && blockContract.checkCompletion(blockDef, newContext)) {
+    if (!event._observationMode && blockContract.checkCompletion && blockContract.checkCompletion(blockDef, newContext)) {
       transitioned = transitionToNextBlock(newContext, journeyDef, blockDef);
     }
 

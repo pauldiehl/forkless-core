@@ -73,11 +73,12 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       const eventActor = event.actor || 'customer';
 
       if (eventActor !== blockActor) {
-        return {
-          handled: false,
-          reason: 'actor_mismatch',
-          detail: `Block "${currentBlockDef.block}" expects actor "${blockActor}", got "${eventActor}"`
-        };
+        // Actor mismatch — but don't hard-reject. Mark as observation mode so the
+        // block executor can still let the agent respond without advancing the block.
+        // This lets physicians comment on customer-facing blocks (and vice versa)
+        // without being silently blocked.
+        event._observationMode = true;
+        event._observationDetail = `Block "${currentBlockDef.block}" expects actor "${blockActor}", got "${eventActor}"`;
       }
     }
 
@@ -137,6 +138,8 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       actions: result.actions,
       error: result.error,
       warning: result.warning,
+      observationMode: event._observationMode || false,
+      observationDetail: event._observationDetail || null,
       journeyStatus: result.newContext.journey_status
     };
   }

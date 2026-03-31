@@ -99,9 +99,10 @@ module.exports = {
    * Determine which api event handler to use.
    */
   getApiHandler(event) {
-    const trigger = event.payload?.triggerEvent || event.payload?.trigger;
-    if (trigger === 'BOOKING_CREATED' || event.payload?.booking_created) return 'booking_created';
-    if (trigger === 'MEETING_ENDED' || event.payload?.meeting_ended) return 'meeting_ended';
+    const trigger = (event.payload?.triggerEvent || event.payload?.trigger || '').toUpperCase();
+    // Accept common Cal.com trigger variants
+    if (trigger === 'BOOKING_CREATED' || trigger === 'BOOKING_COMPLETED' || event.payload?.booking_created) return 'booking_created';
+    if (trigger === 'MEETING_ENDED' || trigger === 'MEETING_COMPLETE' || trigger === 'MEETING_COMPLETED' || event.payload?.meeting_ended || event.payload?.meeting_completed || event.payload?.meeting_complete) return 'meeting_ended';
     return null;
   },
 
