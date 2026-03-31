@@ -8,7 +8,17 @@
  * It reads the block contract and follows instructions.
  */
 
-function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStore }) {
+const { checkReadsContract, checkWritesContract } = require('../core/journey-contracts');
+
+function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStore, contractMode }) {
+  // contractMode: 'off' | 'warn' | 'strict' (default: 'warn')
+  const _contractMode = contractMode || 'warn';
+
+  function logContractViolation(msg) {
+    if (_contractMode === 'off') return;
+    if (_contractMode === 'strict') throw new Error(`[Contract] ${msg}`);
+    console.warn(`[Contract] ${msg}`);
+  }
 
   /**
    * Execute one cycle of the JSM core loop.
@@ -23,6 +33,16 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
   async function execute({ event, context, blockDef, journeyDef }) {
     const blockContract = blockRegistry[blockDef.block];
     if (!blockContract) throw new Error(`No block registered: ${blockDef.block}`);
+
+    // ── Runtime contract: check reads on entry ──
+    if (_contractMode !== 'off') {
+      const readsCheck = checkReadsContract(blockDef, blockContract, context);
+      if (!readsCheck.satisfied) {
+        logContractViolation(
+          `Block "${blockDef.block}" entered with unsatisfied reads: [${readsCheck.missing.join(', ')}]`
+        );
+      }
+    }
 
     // Does this block handle this event type?
     if (!blockContract.handles_events.includes(event.type)) {
@@ -106,6 +126,16 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       }
     }
 
+    // ── Runtime contract: check writes on exit ──
+    if (transitioned && _contractMode !== 'off') {
+      const writesCheck = checkWritesContract(blockDef, blockContract, newContext);
+      if (!writesCheck.fulfilled) {
+        logContractViolation(
+          `Block "${blockDef.block}" exited without fulfilling writes: [${writesCheck.missing.join(', ')}]`
+        );
+      }
+    }
+
     // ── Fire on_enter for new block if transitioned ──
     if (transitioned) {
       const enterResult = await fireOnEnter(newContext, journeyDef, event);
@@ -160,7 +190,17 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       transitioned = transitionToNextBlock(newContext, journeyDef, blockDef);
     }
 
-    // 4. Fire on_enter for new block if transitioned
+    // 4. Runtime contract: check writes on exit (conversational path)
+    if (transitioned && _contractMode !== 'off') {
+      const writesCheck = checkWritesContract(blockDef, blockContract, newContext);
+      if (!writesCheck.fulfilled) {
+        logContractViolation(
+          `Block "${blockDef.block}" (conversational) exited without fulfilling writes: [${writesCheck.missing.join(', ')}]`
+        );
+      }
+    }
+
+    // 5. Fire on_enter for new block if transitioned
     if (transitioned) {
       const enterResult = await fireOnEnter(newContext, journeyDef, event);
       if (enterResult) {
@@ -168,7 +208,7 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       }
     }
 
-    // 5. LLM generates response — include visibility metadata from block definition
+    // 6. LLM generates response — include visibility metadata from block definition
     const defaultVisibility = blockDef.default_visibility || ['customer', 'agent'];
     const respondResult = await actionDispatcher.dispatch(
       {

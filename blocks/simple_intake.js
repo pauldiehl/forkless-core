@@ -16,7 +16,7 @@ module.exports = {
   },
 
   reads: [],
-  writes: ['intake.*'],
+  writes: ['simple_intake.*'],
 
   handles_events: ['conversation'],
 

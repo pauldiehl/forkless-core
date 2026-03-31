@@ -14,6 +14,7 @@ const { createBlockExecutor } = require('./runtime/block-executor');
 const { createEventRouter } = require('./runtime/event-router');
 const { createMockLLM } = require('./core/mock-llm');
 const { buildBlockRegistry, loadJourney, loadJourneysFromDir, validate } = require('./core/journey-loader');
+const { validateJourneyContracts, checkReadsContract, checkWritesContract, checkTransitionContract, generateScenarios } = require('./core/journey-contracts');
 
 // Built-in block contracts
 const blocks = {
@@ -92,9 +93,31 @@ function createCore(opts = {}) {
 
   /**
    * Register a journey definition.
+   * Runs contract validation automatically — warnings are logged,
+   * errors throw in strict mode.
    */
-  function registerJourney(definition) {
+  function registerJourney(definition, { strict = false } = {}) {
     const validated = loadJourney(definition, blockRegistry);
+
+    // ── Contract validation at registration time ──
+    const contractResult = validateJourneyContracts(validated, blockRegistry);
+    if (contractResult.warnings.length > 0) {
+      for (const w of contractResult.warnings) {
+        logger.warn(`[Contract] ${validated.journey_type}: ${w}`);
+      }
+    }
+    if (contractResult.errors.length > 0) {
+      for (const e of contractResult.errors) {
+        logger.error(`[Contract] ${validated.journey_type}: ${e}`);
+      }
+      if (strict) {
+        throw new Error(
+          `Journey "${validated.journey_type}" has contract errors:\n` +
+          contractResult.errors.map(e => `  - ${e}`).join('\n')
+        );
+      }
+    }
+
     journeyDefinitions[validated.journey_type] = validated;
     return validated;
   }
@@ -131,5 +154,10 @@ module.exports = {
   loadJourney,
   loadJourneysFromDir,
   validate,
+  validateJourneyContracts,
+  checkReadsContract,
+  checkWritesContract,
+  checkTransitionContract,
+  generateScenarios,
   blocks
 };
