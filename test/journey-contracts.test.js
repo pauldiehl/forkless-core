@@ -31,7 +31,8 @@ const blocks = {
   rx_consent: require('../blocks/rx_consent'),
   rx_payment: require('../blocks/rx_payment'),
   rx_order: require('../blocks/rx_order'),
-  rx_tracking: require('../blocks/rx_tracking')
+  rx_tracking: require('../blocks/rx_tracking'),
+  visit_summary: require('../blocks/visit_summary')
 };
 
 const blockRegistry = buildBlockRegistry(Object.values(blocks));
@@ -52,7 +53,8 @@ const medicalConsultLabs = {
     { block: 'rx_consent', params: {}, skip_if: 'rx_review.rx_skipped' },
     { block: 'rx_payment', params: { amount_cents: 4999, product_slug: 'rx-plan' }, skip_if: 'rx_review.rx_skipped' },
     { block: 'rx_order', params: {}, actor: 'physician', default_visibility: ['physician', 'agent'], skip_if: 'rx_review.rx_skipped' },
-    { block: 'rx_tracking', params: { checkin_delay: '7d' }, skip_if: 'rx_review.rx_skipped' }
+    { block: 'rx_tracking', params: { checkin_delay: '7d' }, skip_if: 'rx_review.rx_skipped' },
+    { block: 'visit_summary', params: { include_rx_details: true, include_followup_instructions: true } }
   ]
 };
 
@@ -258,7 +260,7 @@ test('scenarios: generates happy path', () => {
   const scenarios = generateScenarios(medicalConsultLabs, blockRegistry);
   const happy = scenarios.find(s => s.type === 'happy_path');
   assert.ok(happy, 'Should generate happy path scenario');
-  assert.ok(happy.blocks.length === 12, `Expected 12 blocks, got ${happy.blocks.length}`);
+  assert.ok(happy.blocks.length === 13, `Expected 13 blocks, got ${happy.blocks.length}`);
 });
 
 test('scenarios: generates actor handoff scenarios', () => {

@@ -50,7 +50,8 @@ module.exports = {
     completion_condition: null  // rx_tracking stays open
   },
 
-  checkCompletion() {
-    return false;  // stays open for ongoing check-ins
+  checkCompletion(blockDef, context) {
+    return context.rx_tracking?.received === true
+      || context.rx_tracking?.completed === true;
   }
 };

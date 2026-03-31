@@ -29,7 +29,8 @@ const blocks = {
   rx_consent: require('./blocks/rx_consent'),
   rx_payment: require('./blocks/rx_payment'),
   rx_order: require('./blocks/rx_order'),
-  rx_tracking: require('./blocks/rx_tracking')
+  rx_tracking: require('./blocks/rx_tracking'),
+  visit_summary: require('./blocks/visit_summary')
 };
 
 /**
