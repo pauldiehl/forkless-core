@@ -31,7 +31,8 @@ module.exports = {
     'followup.booking_id',
     'followup.meeting_url',
     'followup.appointment_datetime',
-    'followup.available_slots_display'
+    'followup.available_slots_display',
+    'followup.additionalHistory'
   ],
 
   handles_events: ['conversation', 'scheduled', 'api'],

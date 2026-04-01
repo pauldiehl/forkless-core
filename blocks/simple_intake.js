@@ -30,10 +30,12 @@ module.exports = {
   checkCompletion(blockDef, context) {
     const requiredFields = blockDef.params.required_fields || [];
     const ns = context[blockDef.block] || context.intake || {};
-    return requiredFields.every(field => {
+    const allRequired = requiredFields.every(field => {
       const val = ns[field];
       return val !== undefined && val !== null && val !== '';
     });
+    // All required fields + medical history asked (even if "none")
+    return allRequired && ns.medicalHistory !== undefined;
   },
 
   /**
