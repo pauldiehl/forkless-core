@@ -31,7 +31,31 @@ module.exports = {
     'encounter_notes.internal_note'    // captured post-approval from conversation
   ],
 
-  handles_events: ['conversation'],
+  handles_events: ['conversation', 'api'],
+
+  // Accept meeting_ended webhook if it arrives while physician is writing notes.
+  // This is informational — captures meeting metadata (and future transcription)
+  // without disrupting the note-writing flow.
+  on_api_event: {
+    meeting_ended: {
+      before: [],
+      transition: null,
+      after: [
+        {
+          type: 'update_context',
+          set: { 'encounter_notes.meeting_data_received': true }
+        }
+        // Future: capture transcription from event.payload.transcription
+        // and make it available to the LLM for note generation
+      ]
+    }
+  },
+
+  getApiHandler(event) {
+    const trigger = (event.payload?.triggerEvent || event.payload?.trigger || '').toUpperCase();
+    if (trigger === 'MEETING_ENDED' || trigger === 'MEETING_COMPLETE' || trigger === 'MEETING_COMPLETED') return 'meeting_ended';
+    return null;
+  },
 
   on_enter: [
     {

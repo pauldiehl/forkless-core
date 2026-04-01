@@ -1,11 +1,16 @@
 /**
  * Followup — Conversational Block
  *
- * Post-journey follow-up. Handles scheduling, check-ins, and ongoing questions.
- * On entry, fetches available scheduling slots (if include_scheduling is true)
- * and presents them to the customer.
+ * Schedules the physician consultation and completes once booked.
+ * On entry, fetches available scheduling slots and presents them.
  *
- * This is typically the final customer-facing block before physician handoff.
+ * Completes when: appointment_booked === true (customer selected a slot).
+ * The meeting_ended webhook is accepted as an informational event (stores
+ * meeting_completed in context) but does NOT gate the transition — the
+ * physician can begin encounter_notes as soon as the appointment is booked.
+ *
+ * Future: meeting_ended webhook can carry a transcription payload that
+ * gets stored in context for encounter_notes to use.
  */
 
 module.exports = {
@@ -51,7 +56,7 @@ module.exports = {
   ],
 
   on_conversation_event: {
-    completion_condition: null  // followup blocks don't auto-complete
+    completion_condition: 'appointment_booked'
   },
 
   on_scheduled_event: {
@@ -81,7 +86,7 @@ module.exports = {
     },
     meeting_ended: {
       before: [],
-      transition: 'next_block',
+      transition: null,  // Informational — does NOT gate the transition.
       after: [
         {
           type: 'transaction_note',
@@ -91,6 +96,7 @@ module.exports = {
           type: 'update_context',
           set: { 'followup.meeting_completed': true }
         }
+        // Future: capture transcription from event.payload.transcription
       ]
     }
   },
@@ -106,7 +112,7 @@ module.exports = {
     return null;
   },
 
-  checkCompletion() {
-    return false;  // followup stays open — transitions via meeting_ended webhook
+  checkCompletion(blockDef, context) {
+    return context.followup?.appointment_booked === true;
   }
 };
