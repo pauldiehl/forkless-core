@@ -17,7 +17,7 @@ module.exports = {
     checkin_delay: { type: 'string' }
   },
 
-  reads: ['rx_review.*', 'rx_order.*', 'simple_intake.*'],
+  reads: ['encounter_notes.*', 'rx_order.*', 'simple_intake.*'],
   writes: ['rx_tracking.received', 'rx_tracking.side_effects_reported'],
 
   handles_events: ['conversation', 'scheduled'],
@@ -25,7 +25,7 @@ module.exports = {
   on_enter: [
     {
       type: 'respond',
-      template: 'Your prescription for {{rx_review.medication_name}} has been submitted to the pharmacy. We\'ll check in with you to see how things are going.'
+      template: 'Your prescription for {{encounter_notes.medication_name}} has been submitted to the pharmacy. We\'ll check in with you to see how things are going.'
     },
     {
       type: 'update_context',

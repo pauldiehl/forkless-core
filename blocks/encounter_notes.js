@@ -28,7 +28,12 @@ module.exports = {
     'encounter_notes.notes_submitted',
     'encounter_notes.rx_mentioned',
     'encounter_notes.physician_approved',
-    'encounter_notes.internal_note'    // captured post-approval from conversation
+    'encounter_notes.internal_note',    // captured post-approval from conversation
+    'encounter_notes.medication_name',
+    'encounter_notes.dosage',
+    'encounter_notes.frequency',
+    'encounter_notes.pharmacy',
+    'encounter_notes.rx_confirmed'
   ],
 
   handles_events: ['conversation', 'api'],
@@ -69,6 +74,10 @@ module.exports = {
   },
 
   checkCompletion(blockDef, context) {
-    return context.encounter_notes?.physician_approved === true;
+    const en = context.encounter_notes || {};
+    if (!en.physician_approved) return false;
+    // If RX was mentioned, must also confirm RX details before completing
+    if (en.rx_mentioned && !en.rx_confirmed) return false;
+    return true;
   }
 };

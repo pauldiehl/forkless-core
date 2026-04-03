@@ -16,7 +16,7 @@ module.exports = {
 
   params_schema: {},
 
-  reads: ['rx_review.*', 'rx_consent.*', 'rx_payment.*', 'simple_intake.*'],
+  reads: ['encounter_notes.*', 'patient_delivery.*', 'simple_intake.*'],
   writes: ['rx_order.submitted', 'rx_order.pharmacy', 'rx_order.submitted_at'],
 
   handles_events: ['conversation'],
@@ -24,7 +24,7 @@ module.exports = {
   on_enter: [
     {
       type: 'respond',
-      template: 'Patient {{simple_intake.customerName}} has consented and payment is confirmed. Please submit the prescription for {{rx_review.medication_name}} ({{rx_review.dosage}}, {{rx_review.frequency}}) to the pharmacy.'
+      template: 'Patient {{simple_intake.customerName}} has consented and payment is confirmed. Please submit the prescription for {{encounter_notes.medication_name}} ({{encounter_notes.dosage}}, {{encounter_notes.frequency}}) to the pharmacy.'
     }
   ],
 
