@@ -30,7 +30,8 @@ const blocks = {
   rx_payment: require('./blocks/rx_payment'),
   rx_order: require('./blocks/rx_order'),
   rx_tracking: require('./blocks/rx_tracking'),
-  visit_summary: require('./blocks/visit_summary')
+  visit_summary: require('./blocks/visit_summary'),
+  patient_delivery: require('./blocks/patient_delivery')
 };
 
 /**
