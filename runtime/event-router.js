@@ -85,6 +85,11 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
     // 5. Store incoming conversation message with visibility metadata
     if (event.type === 'conversation' && event.payload?.text) {
       const defaultVisibility = currentBlockDef.default_visibility || ['customer', 'agent'];
+      // In observation mode (wrong actor), scope visibility to the observer + agent
+      // so physician messages on customer blocks aren't broadcast to customer
+      const messageVisibility = event._observationMode
+        ? [event.actor || 'customer', 'agent']
+        : defaultVisibility;
       const conversationId = event.conversation_id || journeyInstance.context.conversation_id;
 
       // Sync context's conversation_id with the event's authoritative value.
@@ -99,7 +104,7 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
         db.conversations.addMessage(conversationId, {
           role: event.actor || 'customer',
           text: event.payload.text,
-          visibility: defaultVisibility,
+          visibility: messageVisibility,
           actor: event.actor || 'customer',
           block: currentBlockDef.block,
           llm_routed: true

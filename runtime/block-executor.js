@@ -209,7 +209,10 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
     }
 
     // 6. LLM generates response — include visibility metadata from block definition
-    const defaultVisibility = blockDef.default_visibility || ['customer', 'agent'];
+    // In observation mode (wrong actor), scope response to observer + agent
+    const defaultVisibility = event._observationMode
+      ? [event.actor || 'customer', 'agent']
+      : (blockDef.default_visibility || ['customer', 'agent']);
     const respondResult = await actionDispatcher.dispatch(
       {
         type: 'respond',

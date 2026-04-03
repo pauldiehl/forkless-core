@@ -31,10 +31,9 @@ module.exports = {
   ],
   writes: [
     'lab_processing.lab_order_id',
-    'lab_processing.labcorp_status',
-    'lab_processing.results_url',
-    'lab_processing.summary',
-    'lab_processing.visit_confirmed'
+    'lab_processing.labcorp_status'
+    // results_url, summary, panels are written conditionally when results arrive (via webhook handler)
+    // visit_confirmed removed — not tracked in current flow
   ],
 
   handles_events: ['conversation', 'api', 'scheduled'],
