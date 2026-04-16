@@ -325,6 +325,123 @@ function createAdapter(dbPath = ':memory:') {
     }
   };
 
+  // ── Products ──
+
+  const products = {
+    create({ id, slug, name, product_type, category = null, description = null, metadata = {}, active = 1 } = {}) {
+      const pid = id || generateId('prod');
+      db.prepare(
+        'INSERT INTO products (id, slug, name, product_type, category, description, metadata, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(pid, slug, name, product_type, category, description, JSON.stringify(metadata), active);
+      return this.get(pid);
+    },
+
+    get(id) {
+      const row = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+      if (!row) return null;
+      row.metadata = JSON.parse(row.metadata);
+      return row;
+    },
+
+    getBySlug(slug) {
+      const row = db.prepare('SELECT * FROM products WHERE slug = ?').get(slug);
+      if (!row) return null;
+      row.metadata = JSON.parse(row.metadata);
+      return row;
+    },
+
+    list({ product_type, category, active } = {}) {
+      let sql = 'SELECT * FROM products WHERE 1=1';
+      const params = [];
+      if (product_type) { sql += ' AND product_type = ?'; params.push(product_type); }
+      if (category) { sql += ' AND category = ?'; params.push(category); }
+      if (active !== undefined) { sql += ' AND active = ?'; params.push(active ? 1 : 0); }
+      sql += ' ORDER BY name';
+      return db.prepare(sql).all(...params).map(row => {
+        row.metadata = JSON.parse(row.metadata);
+        return row;
+      });
+    },
+
+    update(id, fields) {
+      const allowed = ['slug', 'name', 'product_type', 'category', 'description', 'active'];
+      const sets = [];
+      const vals = [];
+      for (const key of allowed) {
+        if (fields[key] !== undefined) {
+          sets.push(`${key} = ?`);
+          vals.push(fields[key]);
+        }
+      }
+      if (fields.metadata !== undefined) {
+        sets.push('metadata = ?');
+        vals.push(JSON.stringify(fields.metadata));
+      }
+      if (sets.length === 0) return this.get(id);
+      vals.push(id);
+      db.prepare(`UPDATE products SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+      return this.get(id);
+    }
+  };
+
+  // ── Product Prices ──
+
+  const productPrices = {
+    /**
+     * Add a new price row. If this is the "current" price, leave effective_to
+     * as NULL. To replace a price, call closePrice() on the old one first.
+     */
+    create({ id, product_id, price_cents, cost_cents = null, effective_from, effective_to = null } = {}) {
+      const pid = id || generateId('pp');
+      const from = effective_from || new Date().toISOString();
+      db.prepare(
+        'INSERT INTO product_prices (id, product_id, price_cents, cost_cents, effective_from, effective_to) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(pid, product_id, price_cents, cost_cents, from, effective_to);
+      return this.get(pid);
+    },
+
+    get(id) {
+      const row = db.prepare('SELECT * FROM product_prices WHERE id = ?').get(id);
+      return row || null;
+    },
+
+    /**
+     * Get the current price for a product (effective_to IS NULL, or
+     * effective_to is in the future). Returns the most recently-effective row.
+     */
+    getCurrentPrice(product_id, asOf) {
+      const now = asOf || new Date().toISOString();
+      const row = db.prepare(`
+        SELECT * FROM product_prices
+        WHERE product_id = ?
+          AND effective_from <= ?
+          AND (effective_to IS NULL OR effective_to > ?)
+        ORDER BY effective_from DESC
+        LIMIT 1
+      `).get(product_id, now, now);
+      return row || null;
+    },
+
+    /**
+     * Get full price history for a product (newest first).
+     */
+    getHistory(product_id) {
+      return db.prepare(
+        'SELECT * FROM product_prices WHERE product_id = ? ORDER BY effective_from DESC'
+      ).all(product_id);
+    },
+
+    /**
+     * Close an existing price by setting effective_to.
+     * Typically called just before creating a replacement price row.
+     */
+    closePrice(priceId, endDate) {
+      const end = endDate || new Date().toISOString();
+      db.prepare('UPDATE product_prices SET effective_to = ? WHERE id = ?').run(end, priceId);
+      return this.get(priceId);
+    }
+  };
+
   function close() {
     db.close();
   }
@@ -337,6 +454,8 @@ function createAdapter(dbPath = ':memory:') {
     eventsLog,
     businessRecords,
     campaigns,
+    products,
+    productPrices,
     close
   };
 }

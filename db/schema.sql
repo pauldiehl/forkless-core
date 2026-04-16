@@ -1,4 +1,4 @@
--- Forkless Core Schema — 6 tables
+-- Forkless Core Schema — 8 tables
 -- All statements are idempotent (safe to re-run)
 
 CREATE TABLE IF NOT EXISTS users (
@@ -58,6 +58,35 @@ CREATE TABLE IF NOT EXISTS business_records (
 
 CREATE INDEX IF NOT EXISTS idx_business_records_journey ON business_records(journey_instance_id);
 CREATE INDEX IF NOT EXISTS idx_business_records_type ON business_records(record_type);
+
+CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY,
+  slug TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  product_type TEXT NOT NULL,         -- 'lab_panel', 'lab_test', 'bundle', 'rx', 'consult', 'plan', 'ebook'
+  category TEXT,                       -- e.g. 'MALE', 'FEMALE', 'UNISEX'
+  description TEXT,
+  metadata TEXT NOT NULL DEFAULT '{}', -- flexible JSON (panel_ids, included tests, etc.)
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
+CREATE INDEX IF NOT EXISTS idx_products_type ON products(product_type);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
+
+CREATE TABLE IF NOT EXISTS product_prices (
+  id TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id),
+  price_cents INTEGER NOT NULL,
+  cost_cents INTEGER,                  -- supplier/COGS cost for margin analysis
+  effective_from TEXT NOT NULL DEFAULT (datetime('now')),
+  effective_to TEXT,                    -- NULL = indefinite (current price)
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_prices_product ON product_prices(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_prices_effective ON product_prices(product_id, effective_from);
 
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY,
