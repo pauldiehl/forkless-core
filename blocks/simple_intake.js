@@ -10,6 +10,9 @@ module.exports = {
   type: 'conversational',
   name: 'simple_intake',
 
+  actor: 'customer',
+  default_visibility: ['customer', 'agent'],
+
   params_schema: {
     required_fields: { type: 'array', items: 'string', required: true },
     questions: { type: 'array', items: 'string' }

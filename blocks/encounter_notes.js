@@ -1,14 +1,14 @@
 /**
  * Encounter Notes — Conversational Block (physician-facing)
  *
- * Two-turn workflow:
- * Turn 1: Physician pastes notes → LLM generates structured clinical summary
- * Turn 2: Physician reviews and approves (or requests edits)
+ * Multi-phase workflow:
+ * Phase 1: Physician pastes notes → LLM generates structured clinical summary
+ * Phase 2: Physician reviews and approves (or requests edits)
+ * Phase 3: If RX mentioned → capture RX details (medication, dosage, frequency, pharmacy)
+ * Phase 4: Physician confirmation gate — reviews what will be sent to patient
+ *          (external note, consent form, RX price) and confirms or adjusts
  *
- * Structured notes live in the conversation as agent messages.
- * internal_note is captured post-approval from the last agent message.
- *
- * Completion: physician_approved === true
+ * Completion: delivery_confirmed === true (ensures physician approves everything)
  */
 
 module.exports = {
@@ -33,7 +33,9 @@ module.exports = {
     'encounter_notes.dosage',
     'encounter_notes.frequency',
     'encounter_notes.pharmacy',
-    'encounter_notes.rx_confirmed'
+    'encounter_notes.rx_confirmed',
+    'encounter_notes.rx_price_cents',
+    'encounter_notes.delivery_confirmed'
   ],
 
   handles_events: ['conversation', 'api'],
@@ -78,6 +80,8 @@ module.exports = {
     if (!en.physician_approved) return false;
     // If RX was mentioned, must also confirm RX details before completing
     if (en.rx_mentioned && !en.rx_confirmed) return false;
+    // Physician must confirm what will be delivered to patient
+    if (!en.delivery_confirmed) return false;
     return true;
   }
 };

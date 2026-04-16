@@ -1,7 +1,8 @@
 /**
- * RX Tracking — Conversational Block (customer-facing)
+ * RX Tracking — Conversational Block (multi-actor)
  *
- * Customer is informed of prescription order status.
+ * Customer is informed of prescription order status and checks in.
+ * Physician can also update status (e.g. mark as received/fulfilled).
  * Handles check-in reminders via scheduled events.
  * This is typically the final block in a journey with an RX component.
  */
@@ -10,7 +11,7 @@ module.exports = {
   type: 'conversational',
   name: 'rx_tracking',
 
-  actor: 'customer',
+  actor: 'any',  // Both customer and physician can interact
   default_visibility: ['customer', 'agent'],
 
   params_schema: {

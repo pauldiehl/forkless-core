@@ -13,9 +13,13 @@
  * was properly logged.
  */
 
+
 module.exports = {
   type: 'conversational',
   name: 'recommendation',
+
+  actor: 'customer',
+  default_visibility: ['customer', 'agent'],
 
   params_schema: {
     include_agreement: { type: 'boolean' },
@@ -24,7 +28,7 @@ module.exports = {
   },
 
   reads: ['simple_intake.*'],
-  writes: ['recommendation.offering', 'recommendation.agreed', 'recommendation.panels', 'recommendation.consent_recorded'],
+  writes: ['recommendation.offering', 'recommendation.agreed', 'recommendation.panels', 'recommendation.consent_recorded', 'recommendation._entry_message_pushed'],
 
   handles_events: ['conversation'],
 

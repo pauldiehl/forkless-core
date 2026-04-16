@@ -181,14 +181,33 @@ function validateJourneyContracts(journeyDef, blockRegistry) {
  * @param {Object} context - Current journey context
  * @returns {{ satisfied: boolean, missing: string[], available: string[] }}
  */
-function checkReadsContract(blockDef, contract, context) {
+function checkReadsContract(blockDef, contract, context, journeyDef) {
   const reads = contract.reads || [];
   const missing = [];
   const available = [];
+  const skipped = [];
+
+  // Build the set of namespaces that ANY block in this journey writes to.
+  // If a block declares `reads: ['lab_processing.*']` but the current journey
+  // has no `lab_processing` block, that read is structurally-absent (not a
+  // violation) — the block simply runs without that optional data. This
+  // keeps cross-journey blocks (encounter_notes, patient_delivery) from
+  // warning in slimmer journeys that don't include every upstream block.
+  let journeyNamespaces = null;
+  if (journeyDef && Array.isArray(journeyDef.blocks)) {
+    journeyNamespaces = new Set(journeyDef.blocks.map(b => b.block));
+  }
 
   for (const readPath of reads) {
     const isWildcard = readPath.endsWith('.*');
     const ns = readPath.split('.')[0];
+
+    // If the namespace isn't produced by any block in THIS journey, treat the
+    // read as structurally-optional — skip it rather than flag as missing.
+    if (journeyNamespaces && !journeyNamespaces.has(ns)) {
+      skipped.push(readPath);
+      continue;
+    }
 
     if (isWildcard) {
       // Check if namespace exists and has at least one key
@@ -212,6 +231,7 @@ function checkReadsContract(blockDef, contract, context) {
     satisfied: missing.length === 0,
     missing,
     available,
+    skipped,
     block: blockDef.block
   };
 }
@@ -269,9 +289,9 @@ function checkWritesContract(blockDef, contract, context) {
  * @param {Object} context - Current context at transition
  * @returns {{ valid: boolean, exitCheck: Object, enterCheck: Object }}
  */
-function checkTransitionContract(exitBlockDef, exitContract, enterBlockDef, enterContract, context) {
+function checkTransitionContract(exitBlockDef, exitContract, enterBlockDef, enterContract, context, journeyDef) {
   const exitCheck = checkWritesContract(exitBlockDef, exitContract, context);
-  const enterCheck = checkReadsContract(enterBlockDef, enterContract, context);
+  const enterCheck = checkReadsContract(enterBlockDef, enterContract, context, journeyDef);
 
   return {
     valid: exitCheck.fulfilled && enterCheck.satisfied,

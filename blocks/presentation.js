@@ -9,6 +9,9 @@ module.exports = {
   type: 'conversational',
   name: 'presentation',
 
+  actor: 'customer',
+  default_visibility: ['customer', 'agent'],
+
   params_schema: {
     offering_slug: { type: 'string', required: true }
   },

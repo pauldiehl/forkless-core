@@ -16,6 +16,9 @@ module.exports = {
   type: 'capability',
   name: 'lab_processing',
 
+  actor: 'customer',
+  default_visibility: ['customer', 'agent'],
+
   params_schema: {
     lab_provider: { type: 'string', required: true },
     auto_create_order: { type: 'boolean', default: true },
@@ -101,11 +104,14 @@ module.exports = {
           rules: [{ field: 'lab_processing.lab_order_id', required: true }]
         }
       ],
-      transition: 'lab_results_ready',
+      // NO automatic transition — the webhook sets status, but we wait for
+      // actual results to be available (fetched or uploaded) before advancing.
+      // Server.js will call checkCompletion after successful fetch/upload.
+      transition: null,
       after: [
         {
           type: 'transaction_note',
-          template: 'Lab results are ready!'
+          template: 'Lab results notification received.'
         },
         {
           type: 'update_context',
@@ -150,5 +156,30 @@ module.exports = {
     if (status === 'results_ready') return 'lab_results_ready';
     if (status) return 'lab_status_update';
     return null;
+  },
+
+  /**
+   * Block advances only when actual results are available — either:
+   * 1. Auto-fetched from LabCorp (panels array populated), or
+   * 2. Physician uploaded lab results (physician is the authority to unstick the process)
+   *
+   * Customer uploads are accepted and stored, but do NOT advance the block.
+   * The webhook sets labcorp_status = 'results_ready', but that alone
+   * is NOT enough. We need authoritative data to be present.
+   */
+  checkCompletion(blockDef, context) {
+    const lp = context.lab_processing || {};
+
+    // Path 1: Auto-fetched results (panels available)
+    if (lp.panels && Array.isArray(lp.panels) && lp.panels.length > 0) {
+      return true;
+    }
+
+    // Path 2: Physician uploaded lab results (physician is the authority)
+    if (lp._physician_uploaded_results && lp.results_s3_key) {
+      return true;
+    }
+
+    return false;
   }
 };

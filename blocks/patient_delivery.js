@@ -3,12 +3,13 @@
  *
  * On entry, delivers everything at once:
  * 1. Visit summary artifact link (always)
- * 2. Treatment consent form link (if RX prescribed)
+ * 2. Treatment consent form link (if special treatment: TRT, GLP-1, ED, hair-loss)
  * 3. Payment link (if RX prescribed)
  *
  * Completes when:
  * - No RX: customer acknowledges summary
- * - RX: customer signs consent AND payment is completed
+ * - Basic RX: payment completed (summary + rx + payment link presented together on entry)
+ * - Special RX: customer signs consent + payment completed
  */
 
 module.exports = {
@@ -40,26 +41,41 @@ module.exports = {
 
   handles_events: ['conversation', 'api'],
 
-  on_enter: [
-    {
-      type: 'respond',
-      template: 'Your consultation summary and next steps are ready, {{simple_intake.customerName}}!'
-    }
-  ],
+  // on_enter is intentionally empty — the server-side bundled materials
+  // presentation handles the initial message with summary + rx + payment link.
+  on_enter: [],
 
   on_api_event: {
     payment_completed: {
       before: [],
+      transition: 'next_block',
+      after: [
+        { type: 'update_context', set: { 'patient_delivery.payment_status': 'completed', 'patient_delivery.payment_completed_at': '$now' } },
+        { type: 'respond', template: 'Payment confirmed! Your prescription for {{encounter_notes.medication_name}} is being sent to {{encounter_notes.pharmacy}}. You should be able to pick it up within 1-2 business days.' },
+        { type: 'transaction_note', template: 'Prescription payment received.' }
+      ]
+    },
+    payment_failed: {
+      before: [],
       transition: null,
       after: [
-        { type: 'update_context', set: { 'patient_delivery.payment_status': 'completed' } },
-        { type: 'transaction_note', text: 'Prescription payment received.' }
+        { type: 'respond', template: 'Your payment could not be processed. Please try again or use a different payment method.' },
+        { type: 'update_context', set: { 'patient_delivery.payment_status': 'failed' } }
       ]
     }
   },
 
+  /**
+   * Route webhook payloads to the right handler.
+   * Square sends: { status: 'completed' | 'failed', order_id: '...' }
+   */
   getApiHandler(event) {
+    const status = event.payload?.status;
+    if (status === 'completed') return 'payment_completed';
+    if (status === 'failed') return 'payment_failed';
+    // Also accept { type: 'payment.completed' } format
     if (event.payload?.type === 'payment.completed') return 'payment_completed';
+    if (event.payload?.type === 'payment.failed') return 'payment_failed';
     return null;
   },
 
@@ -76,7 +92,15 @@ module.exports = {
       return pd.summary_acknowledged === true;
     }
 
-    // RX: needs consent + payment
-    return pd.consent_signed === true && pd.payment_status === 'completed';
+    // RX path: payment must be completed (via webhook)
+    if (pd.payment_status !== 'completed') return false;
+
+    // For special treatments: formal consent must also be signed
+    if (pd._consent_required === true) {
+      return pd.consent_signed === true;
+    }
+
+    // Basic RX: payment is sufficient — no intermediate acknowledgment needed
+    return true;
   }
 };

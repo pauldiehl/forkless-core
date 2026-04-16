@@ -72,7 +72,7 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
       const blockActor = currentBlockDef.actor || 'customer';
       const eventActor = event.actor || 'customer';
 
-      if (eventActor !== blockActor) {
+      if (blockActor !== 'any' && eventActor !== blockActor) {
         // Actor mismatch — but don't hard-reject. Mark as observation mode so the
         // block executor can still let the agent respond without advancing the block.
         // This lets physicians comment on customer-facing blocks (and vice versa)
@@ -86,10 +86,16 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
     if (event.type === 'conversation' && event.payload?.text) {
       const defaultVisibility = currentBlockDef.default_visibility || ['customer', 'agent'];
       // In observation mode (wrong actor), scope visibility to the observer + agent
-      // so physician messages on customer blocks aren't broadcast to customer
-      const messageVisibility = event._observationMode
-        ? [event.actor || 'customer', 'agent']
-        : defaultVisibility;
+      // so physician messages on customer blocks aren't broadcast to customer.
+      // For multi-actor blocks (actor: 'any'), scope to the current actor + agent.
+      let messageVisibility;
+      if (event._observationMode) {
+        messageVisibility = [event.actor || 'customer', 'agent'];
+      } else if (currentBlockDef.actor === 'any') {
+        messageVisibility = [event.actor || 'customer', 'agent'];
+      } else {
+        messageVisibility = defaultVisibility;
+      }
       const conversationId = event.conversation_id || journeyInstance.context.conversation_id;
 
       // Sync context's conversation_id with the event's authoritative value.

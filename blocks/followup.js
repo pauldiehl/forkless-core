@@ -17,6 +17,9 @@ module.exports = {
   type: 'conversational',
   name: 'followup',
 
+  actor: 'customer',
+  default_visibility: ['customer', 'agent'],
+
   params_schema: {
     include_scheduling: { type: 'boolean' },
     cal_event_type: { type: 'string' },
@@ -32,6 +35,9 @@ module.exports = {
     'followup.meeting_url',
     'followup.appointment_datetime',
     'followup.available_slots_display',
+    'followup.available_slots_summary',
+    'followup.available_slots',
+    'followup.proposed_slot_datetime',
     'followup.additionalHistory'
   ],
 
@@ -48,7 +54,7 @@ module.exports = {
     },
     {
       type: 'respond',
-      template: 'Let\'s schedule your physician consultation. Here are the available times:\n\n{{followup.available_slots_display}}\n\nWhich time works best for you?'
+      template: 'Let\'s get your physician consultation on the calendar. {{followup.available_slots_summary}}'
     },
     {
       type: 'update_context',

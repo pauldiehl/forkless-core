@@ -84,9 +84,17 @@ function createAdapter(dbPath = ':memory:') {
 
     put(id, data) {
       const now = new Date().toISOString();
-      db.prepare(
-        'UPDATE journey_instances SET context = ?, status = ?, updated_at = ? WHERE id = ?'
-      ).run(JSON.stringify(data.context), data.status, now, id);
+      // journey_type is optional — only update it when explicitly provided
+      // (e.g. during snapshot restore where the type may differ from the row's type).
+      if (data.journey_type !== undefined) {
+        db.prepare(
+          'UPDATE journey_instances SET context = ?, status = ?, journey_type = ?, updated_at = ? WHERE id = ?'
+        ).run(JSON.stringify(data.context), data.status, data.journey_type, now, id);
+      } else {
+        db.prepare(
+          'UPDATE journey_instances SET context = ?, status = ?, updated_at = ? WHERE id = ?'
+        ).run(JSON.stringify(data.context), data.status, now, id);
+      }
       return this.get(id);
     },
 
@@ -159,6 +167,14 @@ function createAdapter(dbPath = ':memory:') {
       return this.get(id);
     },
 
+    updateMessages(id, messages) {
+      const now = new Date().toISOString();
+      db.prepare(
+        'UPDATE conversations SET messages = ?, updated_at = ? WHERE id = ?'
+      ).run(JSON.stringify(messages), now, id);
+      return this.get(id);
+    },
+
     getMessages(id, { viewer } = {}) {
       const convo = this.get(id);
       if (!convo) return null;
@@ -166,6 +182,14 @@ function createAdapter(dbPath = ':memory:') {
       return convo.messages.filter(msg =>
         !msg.visibility || msg.visibility.includes('all') || msg.visibility.includes(viewer)
       );
+    },
+
+    updateJourneyLink(id, newJourneyInstanceId) {
+      const now = new Date().toISOString();
+      db.prepare(
+        'UPDATE conversations SET journey_instance_id = ?, updated_at = ? WHERE id = ?'
+      ).run(newJourneyInstanceId, now, id);
+      return this.get(id);
     },
 
     findByJourney(journey_instance_id) {

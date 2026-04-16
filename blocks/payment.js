@@ -10,6 +10,9 @@ module.exports = {
   type: 'capability',
   name: 'payment',
 
+  actor: 'customer',
+  default_visibility: ['customer', 'agent'],
+
   params_schema: {
     amount_cents: { type: 'number', required: true },
     product_slug: { type: 'string', required: true },

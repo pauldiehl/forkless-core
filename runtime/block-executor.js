@@ -36,7 +36,7 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
 
     // ── Runtime contract: check reads on entry ──
     if (_contractMode !== 'off') {
-      const readsCheck = checkReadsContract(blockDef, blockContract, context);
+      const readsCheck = checkReadsContract(blockDef, blockContract, context, journeyDef);
       if (!readsCheck.satisfied) {
         logContractViolation(
           `Block "${blockDef.block}" entered with unsatisfied reads: [${readsCheck.missing.join(', ')}]`
@@ -168,6 +168,10 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       context.conversation_id = conversationId;
     }
 
+    // Pass the current actor to context so LLM instructions can be actor-aware
+    // (e.g., rx_tracking responds differently to physician vs customer).
+    context._current_actor = event.actor || 'customer';
+
     // 1. Ask LLM to parse intent + extract data
     const parseResult = await actionDispatcher.dispatch(
       { type: 'parse_intent', payload: { text: event.payload.text, block: blockDef, conversationHistory } },
@@ -209,14 +213,28 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
     }
 
     // 6. LLM generates response — include visibility metadata from block definition
-    // In observation mode (wrong actor), scope response to observer + agent
-    const defaultVisibility = event._observationMode
-      ? [event.actor || 'customer', 'agent']
-      : (blockDef.default_visibility || ['customer', 'agent']);
+    // In observation mode (wrong actor), scope response to observer + agent.
+    // For multi-actor blocks (actor: 'any'), scope response to the current actor + agent.
+    let defaultVisibility;
+    if (event._observationMode) {
+      defaultVisibility = [event.actor || 'customer', 'agent'];
+    } else if (blockDef.actor === 'any') {
+      defaultVisibility = [event.actor || 'customer', 'agent'];
+    } else {
+      defaultVisibility = blockDef.default_visibility || ['customer', 'agent'];
+    }
+    // Pass actor info to the LLM so it can tailor the response
+    const llmContext = { ...newContext };
+    llmContext._current_actor = event.actor || 'customer';
+    if (event._observationMode) {
+      llmContext._observation_mode = true;
+      llmContext._observation_actor = event.actor || 'customer';
+      llmContext._observation_block_actor = blockDef.actor || 'customer';
+    }
     const respondResult = await actionDispatcher.dispatch(
       {
         type: 'respond',
-        payload: { intent: parseResult.intent, context: newContext, block: blockDef, conversationHistory },
+        payload: { intent: parseResult.intent, context: llmContext, block: blockDef, conversationHistory },
         visibility: defaultVisibility,
         actor: 'agent',
         block: blockDef.block,
@@ -243,14 +261,16 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
     if (!blockDef) return null;
 
     const blockContract = blockRegistry[blockDef.block];
-    if (!blockContract?.on_enter || blockContract.on_enter.length === 0) return null;
 
     let newContext = deepClone(context);
     const actions = [];
 
     // Pre-populate context namespace with ALL block params so they're available
-    // for params_from_context resolution and template rendering.
-    // e.g. followup.cal_event_type, lab_processing.lab_provider, etc.
+    // for params_from_context resolution, template rendering, and so downstream
+    // code (including the contract writes check) can see the slug/etc values
+    // declared in the journey JSON. This MUST run even for blocks that have no
+    // on_enter actions — otherwise e.g. presentation.offering_slug is never
+    // written and the writes contract warns on exit.
     const ns = blockDef.block;
     if (blockDef.params) {
       if (!newContext[ns]) newContext[ns] = {};
@@ -265,13 +285,19 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       }
     }
 
+    // No on_enter actions to dispatch — return the (param-populated) context as-is
+    // so the caller can persist it.
+    if (!blockContract?.on_enter || blockContract.on_enter.length === 0) {
+      return { newContext, actions };
+    }
+
     for (const action of blockContract.on_enter) {
       const resolvedAction = resolveActionRefs(action, newContext, event);
       // Attach block params for capability param resolution
       resolvedAction._blockParams = blockDef.params;
       // Propagate block's default_visibility to respond actions that don't set their own
       if (resolvedAction.type === 'respond' && !resolvedAction.visibility) {
-        resolvedAction.visibility = blockDef.default_visibility || blockContract.default_visibility;
+        resolvedAction.visibility = blockDef.default_visibility || blockContract.default_visibility || ['customer', 'agent'];
       }
 
       let result;
@@ -352,17 +378,43 @@ function getHandler(blockContract, event) {
 
 /**
  * Check if a block should be skipped based on its skip_if condition.
- * skip_if is a dot-notation path into the context — if the value is truthy, skip.
+ * Supports:
+ *   - Simple path: "rx_review.rx_skipped" (truthy → skip)
+ *   - Negated path: "!encounter_notes.rx_confirmed" (falsy → skip)
+ *   - Comparison: "encounter_notes.rx_confirmed !== true" (evaluates comparison)
  */
 function shouldSkipBlock(blockDef, context) {
   if (!blockDef.skip_if) return false;
-  const parts = blockDef.skip_if.split('.');
+  const expr = blockDef.skip_if.trim();
+
+  // Handle comparisons: "path !== value" or "path === value"
+  const compMatch = expr.match(/^(.+?)\s*(===|!==)\s*(.+)$/);
+  if (compMatch) {
+    const resolved = resolvePath(compMatch[1].trim(), context);
+    const rhs = compMatch[3].trim();
+    const compareTo = rhs === 'true' ? true : rhs === 'false' ? false : rhs === 'null' ? null : rhs;
+    if (compMatch[2] === '!==') return resolved !== compareTo;
+    if (compMatch[2] === '===') return resolved === compareTo;
+  }
+
+  // Handle negation: "!path"
+  if (expr.startsWith('!')) {
+    return !resolvePath(expr.slice(1), context);
+  }
+
+  // Simple path: truthy → skip
+  return !!resolvePath(expr, context);
+}
+
+/** Resolve a dot-notation path against a context object. */
+function resolvePath(path, context) {
+  const parts = path.split('.');
   let value = context;
   for (const part of parts) {
-    if (value === undefined || value === null) return false;
+    if (value === undefined || value === null) return undefined;
     value = value[part];
   }
-  return !!value;
+  return value;
 }
 
 /**
