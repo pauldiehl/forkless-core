@@ -48,10 +48,15 @@ module.exports = {
   on_api_event: {
     payment_completed: {
       before: [],
-      transition: 'next_block',
+      // transition is NULL — do NOT auto-advance. The server-side webhook
+      // handler manually evaluates checkCompletion after setting context,
+      // so that consent-gated flows (GLP-1, TRT, ED, hair-loss) are
+      // respected. Without this, the block executor would skip checkCompletion
+      // entirely for API events.
+      transition: null,
       after: [
         { type: 'update_context', set: { 'patient_delivery.payment_status': 'completed', 'patient_delivery.payment_completed_at': '$now' } },
-        { type: 'respond', template: 'Payment confirmed! Your prescription for {{encounter_notes.medication_name}} is being sent to {{encounter_notes.pharmacy}}. You should be able to pick it up within 1-2 business days.' },
+        { type: 'respond', template: 'Payment confirmed! Your prescription for {{encounter_notes.medication_name}} is being processed. Your care team will follow up with pharmacy and delivery details.' },
         { type: 'transaction_note', template: 'Prescription payment received.' }
       ]
     },
