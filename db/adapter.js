@@ -157,6 +157,10 @@ function createAdapter(dbPath = ':memory:') {
         actor: message.actor || message.role,
         block: message.block || null,
         llm_routed: message.llm_routed !== undefined ? message.llm_routed : true,
+        // Channel of origin for inbound, or intended-target hint for outbound.
+        // Defaults to 'web' so legacy callers (and the web/CLI flow) work
+        // unchanged. Consumers add multi-channel routing on top of this.
+        channel: message.channel || 'web',
         timestamp: message.timestamp || new Date().toISOString()
       };
       convo.messages.push(msg);
