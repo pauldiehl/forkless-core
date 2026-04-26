@@ -113,7 +113,10 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
           visibility: messageVisibility,
           actor: event.actor || 'customer',
           block: currentBlockDef.block,
-          llm_routed: true
+          llm_routed: true,
+          // Channel of origin propagated from the inbound webhook (e.g. 'sms').
+          // Falls through to the addMessage adapter's default ('web') when not set.
+          channel: event.channel
         });
       }
     }
@@ -170,7 +173,9 @@ function createEventRouter({ db, blockExecutor, journeyDefinitions }) {
         visibility,
         actor: event.actor,
         block: journeyInstance.context.current_block,
-        llm_routed: false
+        llm_routed: false,
+        // Channel of origin propagated from the inbound webhook (e.g. 'sms').
+        channel: event.channel
       });
     }
 
