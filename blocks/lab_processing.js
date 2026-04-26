@@ -55,7 +55,7 @@ module.exports = {
     },
     {
       type: 'respond',
-      template: 'Your lab order has been created! Here\'s what to do next:\n\n1. Visit any LabCorp location with your photo ID\n2. No appointment needed — just walk in\n3. Results typically take 3-5 business days\n\nYour order ID: {{lab_processing.lab_order_id}}\n\nFasting may be required for accurate hormone panel results — avoid eating 8-12 hours before your visit if possible.'
+      template: 'Your lab order has been created! Here\'s what to do next:\n\n1. Visit any LabCorp location with your photo ID. Find the nearest one at https://www.labcorp.com/labs-and-appointments\n2. Some locations accept walk-ins; others require an appointment — check before you go\n3. Results typically take 3-5 business days\n\nYour order ID: {{lab_processing.lab_order_id}}\n\nFasting may be required for accurate hormone panel results — avoid eating 8-12 hours before your visit if possible.'
     },
     {
       type: 'update_context',
