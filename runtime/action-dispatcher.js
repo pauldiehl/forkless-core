@@ -27,7 +27,18 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
           llm_routed: action.llm_routed
         };
         if (action.template) {
-          const text = resolveTemplate(action.template, context);
+          const rawText = resolveTemplate(action.template, context);
+          // Phase 13.3b — strip lines whose template tokens didn't resolve
+          // before sending to the customer. resolveTemplate intentionally
+          // leaves missing paths as the literal `{{ns.key}}` (useful for
+          // dev visibility in transaction notes / logs), but the customer
+          // shouldn't see raw curly braces. If every line is unresolved,
+          // suppress the send entirely and let the dev see the warn.
+          const text = stripUnresolvedTemplateLines(rawText, action.block || context.current_block);
+          if (!text || !text.trim()) {
+            console.warn(`[respond] All lines had unresolved {{...}} tokens — suppressing message entirely (block: ${action.block || 'unknown'})`);
+            return { sent: false, reason: 'all_lines_unresolved' };
+          }
           if (conversationStore && context.conversation_id) {
             await conversationStore.addMessage(context.conversation_id, { ...msgMeta, text });
           } else if (!context.conversation_id) {
@@ -98,6 +109,7 @@ function createActionDispatcher({ conversationStore, capabilityRegistry, schedul
 
       case 'parse_intent': {
         if (!llm) return { intent: 'unknown', extracted: {}, reason: 'no_llm_configured' };
+        console.log(`[action-dispatcher] parse_intent for block="${action.payload.block?.block || '?'}" text="${(action.payload.text || '').slice(0, 60)}..."`);
         const result = await llm.parseIntent(action.payload.text, context, action.payload.block, action.payload.conversationHistory);
         return result;
       }
@@ -169,6 +181,37 @@ function resolveTemplate(template, context) {
     }
     return value !== undefined && value !== null ? String(value) : match;
   });
+}
+
+/**
+ * Phase 13.3b — drop newline-delimited lines that still contain a `{{...}}`
+ * token after template resolution. Used to keep customer-facing respond
+ * messages clean when context paths are missing (e.g. an upstream
+ * capability failed to populate the value). Logs each dropped line at
+ * warn level so devs can see the leak in development.
+ *
+ * If the entire template resolved cleanly, the input is returned unchanged.
+ *
+ * @param {string} text — already-rendered template text
+ * @param {string} [blockName] — block name, for log context only
+ * @returns {string}
+ */
+function stripUnresolvedTemplateLines(text, blockName) {
+  if (!text || typeof text !== 'string') return text;
+  if (!text.includes('{{')) return text;
+  const tokenRe = /\{\{(\w+(?:\.\w+)*)\}\}/;
+  const lines = text.split('\n');
+  const kept = [];
+  for (const line of lines) {
+    if (tokenRe.test(line)) {
+      console.warn(`[respond] Dropping line with unresolved template (block: ${blockName || 'unknown'}): ${line.trim().slice(0, 100)}`);
+      continue;
+    }
+    kept.push(line);
+  }
+  // Collapse 3+ blank lines that often appear after dropping a line in
+  // the middle of a multi-paragraph template.
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**

@@ -32,7 +32,11 @@ const blocks = {
   rx_tracking: require('./blocks/rx_tracking'),
   visit_summary: require('./blocks/visit_summary'),
   patient_delivery: require('./blocks/patient_delivery'),
-  results_delivery: require('./blocks/results_delivery')
+  results_delivery: require('./blocks/results_delivery'),
+  quick_intake: require('./blocks/quick_intake'),
+  plan_assessment: require('./blocks/plan_assessment'),
+  plan_generation: require('./blocks/plan_generation'),
+  plan_refinement: require('./blocks/plan_refinement')
 };
 
 /**

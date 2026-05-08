@@ -56,8 +56,10 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       // No specific handler matched.
       // For conversational blocks with conversation events → LLM handles it
       if (blockContract.type === 'conversational' && event.type === 'conversation') {
+        console.log(`[block-executor] → handleConversational for "${blockDef.block}"`);
         return await handleConversational(blockContract, blockDef, event, context, journeyDef);
       }
+      console.log(`[block-executor] No handler, skipping — block="${blockDef.block}" type=${blockContract.type} event=${event.type}`);
       return { newContext: context, actions: [], transitioned: false };
     }
 
@@ -291,6 +293,19 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
       return { newContext, actions };
     }
 
+    // Phase 13.3a — when a capability action fails, suppress downstream
+    // customer-visible actions (`respond`, `transaction_note`) in the same
+    // on_enter chain. Without this, e.g. lab_processing.on_enter would
+    // call `lab_create_order` (HTTP 400 → throws), then still fire its
+    // "Your lab order has been created!" respond template — telling the
+    // customer something untrue with an unresolved {{lab_order_id}}
+    // template variable in the body. update_context still runs (might be
+    // benign cleanup); other capability calls still run (might recover
+    // independently). Authors who want a "sorry, retry" message on
+    // failure should use on_api_event handlers, not on_enter.
+    let capabilityFailed = false;
+    const SUPPRESS_AFTER_CAP_FAIL = new Set(['respond', 'transaction_note']);
+
     for (const action of blockContract.on_enter) {
       const resolvedAction = resolveActionRefs(action, newContext, event);
       // Attach block params for capability param resolution
@@ -300,12 +315,24 @@ function createBlockExecutor({ actionDispatcher, blockRegistry, conversationStor
         resolvedAction.visibility = blockDef.default_visibility || blockContract.default_visibility || ['customer', 'agent'];
       }
 
+      // Skip customer-facing follow-up if a previous capability blew up.
+      if (capabilityFailed && SUPPRESS_AFTER_CAP_FAIL.has(resolvedAction.type)) {
+        console.warn(`[on_enter] Skipping "${resolvedAction.type}" for block "${blockDef.block}" — earlier capability action failed`);
+        actions.push({ action: resolvedAction, skipped: 'earlier_capability_failed' });
+        continue;
+      }
+
       let result;
       try {
         result = await actionDispatcher.dispatch(resolvedAction, newContext, event);
       } catch (err) {
-        // on_enter actions should not crash the transition — log and continue
+        // on_enter actions should not crash the transition — log and continue.
+        // Track capability failures so downstream respond/transaction_note can
+        // be suppressed (see Phase 13.3a comment above).
         console.warn(`[on_enter] Action "${resolvedAction.type}" failed for block "${blockDef.block}": ${err.message}`);
+        if (resolvedAction.type === 'capability' || resolvedAction.type === 'execute_capability') {
+          capabilityFailed = true;
+        }
         actions.push({ action: resolvedAction, error: err.message });
         continue;
       }
