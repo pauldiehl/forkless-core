@@ -132,8 +132,18 @@ function createScheduler(opts = {}) {
     return storage.list();
   }
 
+  /**
+   * Look up a registered handler by job type. Useful for admin tooling
+   * that wants to invoke a job's handler immediately without going
+   * through the schedule → tick → run path (e.g. "force this job now").
+   */
+  function getHandler(jobType) {
+    return handlers[jobType] || null;
+  }
+
   return {
     registerHandler,
+    getHandler,
     schedule,
     cancel,
     pause,
