@@ -31,7 +31,9 @@ module.exports = {
       params_from_context: {
         amount_cents: 'payment.amount_cents',
         product_slug: 'payment.product_slug',
-        buyer_email: 'simple_intake.customerEmail'
+        product_name: 'payment.product_name',
+        buyer_email: 'simple_intake.customerEmail',
+        buyer_phone: 'payment.buyer_phone'
       }
     },
     {
