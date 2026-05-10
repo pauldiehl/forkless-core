@@ -159,23 +159,34 @@ module.exports = {
   },
 
   /**
-   * Block advances only when actual results are available — either:
-   * 1. Auto-fetched from LabCorp (panels array populated), or
-   * 2. Physician uploaded lab results (physician is the authority to unstick the process)
+   * Block advances only when actual results are available — any of:
+   * 1. Auto-fetched parsed panels from LabCorp (panels array populated).
+   * 2. Auto-fetched PDF from LabCorp (results_s3_key populated AND
+   *    results_source='auto_fetch'). The PDF alone is enough to advance —
+   *    the physician will read it in the consult; parsed panels are nice-
+   *    to-have but the upstream Lambda doesn't always populate them.
+   * 3. Physician uploaded lab results (physician is the authority to
+   *    unstick the process).
    *
    * Customer uploads are accepted and stored, but do NOT advance the block.
-   * The webhook sets labcorp_status = 'results_ready', but that alone
-   * is NOT enough. We need authoritative data to be present.
+   * The webhook sets labcorp_status = 'results_ready', but that alone is
+   * NOT enough — we need authoritative artifact data to be present.
    */
   checkCompletion(blockDef, context) {
     const lp = context.lab_processing || {};
 
-    // Path 1: Auto-fetched results (panels available)
+    // Path 1: Auto-fetched parsed panels.
     if (lp.panels && Array.isArray(lp.panels) && lp.panels.length > 0) {
       return true;
     }
 
-    // Path 2: Physician uploaded lab results (physician is the authority)
+    // Path 2: Auto-fetched PDF (no parsed panels). PDF in S3 is sufficient
+    // proof that real results landed; consult flow can proceed.
+    if (lp.results_source === 'auto_fetch' && lp.results_s3_key) {
+      return true;
+    }
+
+    // Path 3: Physician uploaded lab results.
     if (lp._physician_uploaded_results && lp.results_s3_key) {
       return true;
     }
