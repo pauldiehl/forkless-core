@@ -49,16 +49,38 @@ const blocks = {
  * @param {Object} [opts.logger] - Logger { log, info, error }
  * @param {number} [opts.tickIntervalMs] - Scheduler tick interval
  * @param {Object[]} [opts.extraBlocks] - Additional block contracts to register
+ * @param {function|Object} [opts.schedulerStorage] - Storage adapter for the
+ *   scheduler. Either an object implementing { put, get, list, remove } directly,
+ *   or a factory function `(rawDb) => storage` that's called with the raw
+ *   better-sqlite3 instance after the core's adapter has opened the database.
+ *   When omitted, the scheduler falls back to its default in-memory store
+ *   (jobs do NOT survive process restart). For production, pass a persistent
+ *   adapter — mvh-forkless ships one in lib/scheduler-storage.js.
  * @returns {Object} Wired Forkless Core instance
  */
 function createCore(opts = {}) {
   const db = createAdapter(opts.dbPath || ':memory:');
   const context = createContextManager({ db });
   const capabilityRegistry = createCapabilityRegistry();
+
+  // Resolve scheduler storage. Either an object the caller built directly,
+  // or a factory we call with the raw better-sqlite3 instance (the common
+  // case — the caller can't build SQLite-backed storage until our adapter
+  // has opened the DB). Anything else → undefined, which means the
+  // scheduler uses its built-in in-memory store.
+  let schedulerStorage;
+  if (typeof opts.schedulerStorage === 'function') {
+    const rawDb = db.db || db._raw || db._db;
+    schedulerStorage = opts.schedulerStorage(rawDb);
+  } else if (opts.schedulerStorage && typeof opts.schedulerStorage === 'object') {
+    schedulerStorage = opts.schedulerStorage;
+  }
+
   const scheduler = createScheduler({
     tickIntervalMs: opts.tickIntervalMs,
     onJobRun: opts.onJobRun,
-    onJobError: opts.onJobError
+    onJobError: opts.onJobError,
+    storage: schedulerStorage
   });
   const logger = opts.logger || console;
 
