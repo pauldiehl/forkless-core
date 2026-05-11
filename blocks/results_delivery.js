@@ -4,7 +4,13 @@
  * Final block for labs-only journeys. Delivers lab results to the customer
  * when they're available and answers questions about the results.
  *
- * Completion: results_acknowledged === true
+ * Completion: results_acknowledged === true AND questions_asked >= 1.
+ * Both flags must be set — a customer simply saying "thanks!" is not
+ * enough to close the journey. They must have engaged with the results
+ * (asked at least one clarifying question) AND then explicitly signaled
+ * they're done. This prevents over-eager auto-completion when the patient
+ * is just being polite. The LLM extractor handles both fields; see
+ * llm/adapter.js → results_delivery block.
  */
 
 module.exports = {
@@ -57,6 +63,12 @@ module.exports = {
   },
 
   checkCompletion(blockDef, context) {
-    return context.results_delivery?.results_acknowledged === true;
+    // Phase 18 — require BOTH an explicit acknowledgment AND at least one
+    // clarifying question. Closes the polite-thanks-on-arrival false positive
+    // (patient says "thanks for sending these!" before reading the results).
+    // The LLM extractor maintains questions_asked as a turn-counter; see
+    // llm/adapter.js → results_delivery instructions.
+    const rd = context.results_delivery || {};
+    return rd.results_acknowledged === true && (rd.questions_asked || 0) >= 1;
   }
 };
